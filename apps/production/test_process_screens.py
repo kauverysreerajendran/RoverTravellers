@@ -7,8 +7,11 @@ shown, Lot never is, and the two tables are genuinely different screens.
 
 from decimal import Decimal
 
+from io import StringIO
+
 from django import forms
 from django.conf import settings
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
@@ -551,3 +554,57 @@ class ProcessChainTests(WorkflowTestBase):
                 after = self.client.get(main_url)
                 self.assertNotContains(after, f"Incoming from {process.label}")
                 self.assertContains(after, wire_serial)
+
+
+class BackfillHandoverDataTests(WorkflowTestBase):
+    """A database created before the handover chain has Rolling batches
+    with no carrier lot and completed records with no completion time.
+    `backfill_handover_data` repairs both, and is safe to run twice.
+    """
+
+    def test_a_batch_with_no_carrier_lot_becomes_completable(self):
+        origin = PROCESSES[0]
+        following = origin.next
+
+        # A batch as the old code left it: in progress, no carrier lot.
+        batch = origin.model.objects.create(
+            wire_serial="OLD001", traveller_type=self.rolling_batch.traveller_type,
+            traveller_no=self.rolling_batch.traveller_no, finish=self.rolling_batch.finish,
+            wire_diameter_mm=Decimal("0.93"), f_thickness_mm=Decimal("0.41"), f_width_mm=Decimal("1.78"),
+            required_box=1, wire_weight_issued_kg=Decimal("100"), status="In Progress",
+        )
+        self.assertIsNone(batch.handover_lot)
+
+        call_command("backfill_handover_data", stdout=StringIO())
+
+        batch.refresh_from_db()
+        self.assertIsNotNone(batch.handover_lot, "the batch still has nothing to hand over")
+        self.assertEqual(batch.handover_lot.current_stage, origin.slug)
+
+        # And it can now be completed and handed on, which it could not before.
+        rolling_services.complete_rolling_batch(
+            batch, rolled_thickness_mm=Decimal("0.41"), rolled_width_mm=Decimal("1.78"),
+            finished_weight_kg=Decimal("95"), user=self.admin,
+        )
+        self.assertIn(
+            batch.handover_lot.pk,
+            [record.handover_lot.pk for record in following.incoming_queryset(None)],
+        )
+
+    def test_completed_records_without_a_completion_time_are_stamped(self):
+        self.seed_forming_wip("480")
+        transaction = self.make_forming(input_qty="480", output_qty="460", rejection_qty="15")
+        prod_services.complete_stage(transaction, self.admin)
+        # As an old row would have been left by the schema migration alone.
+        type(transaction).objects.filter(pk=transaction.pk).update(completed_at=None)
+
+        call_command("backfill_handover_data", stdout=StringIO())
+
+        transaction.refresh_from_db()
+        self.assertIsNotNone(transaction.completed_at)
+
+    def test_running_it_again_changes_nothing(self):
+        output = StringIO()
+        call_command("backfill_handover_data", stdout=output)
+        call_command("backfill_handover_data", stdout=output)
+        self.assertIn("already up to date", output.getvalue())

@@ -128,6 +128,22 @@ as soon as you have them:
 python manage.py import_traveller_mappings mappings.csv   # seq_no,diameter_mm,f_thickness_mm,f_width_mm
 ```
 
+### Upgrading a database created before the handover chain
+
+Migrations are generated locally rather than committed (see `.gitignore`),
+so `makemigrations` will add the new columns but cannot backfill them. On any
+database that already held process records, run this once after migrating:
+
+```bash
+python manage.py backfill_handover_data --dry-run   # report what it would change
+python manage.py backfill_handover_data
+```
+
+It gives every Rolling batch its carrier lot (batches that were already in
+progress had none, and could not otherwise be completed) and stamps a
+completion time on records that finished before the field existed. It is safe
+to run more than once.
+
 To clear every process record while leaving master data untouched:
 
 ```bash
