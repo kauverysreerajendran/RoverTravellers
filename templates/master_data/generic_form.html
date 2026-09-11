@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 720px;">
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="row g-3">
+        {% for field in form %}
+          <div class="col-md-6">
+            <label class="form-label">{{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="mt-4 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

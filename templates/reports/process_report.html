@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Process-wise Report{% endblock %}
+{% block content %}
+{% include "reports/_report_nav.html" %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-compact mb-0">
+      <thead><tr><th>Stage</th><th>Lots</th><th>Input</th><th>Output</th><th>Rejection</th><th>Pending</th><th>Completed</th></tr></thead>
+      <tbody>
+      {% for s in stage_summary %}
+        <tr><td>{{ s.label }}</td><td>{{ s.total_lots }}</td><td>{{ s.input_quantity }}</td><td>{{ s.output_quantity }}</td>
+          <td>{{ s.rejection_quantity }}</td><td>{{ s.pending }}</td><td>{{ s.completed }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

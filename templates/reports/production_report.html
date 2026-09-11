@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Production Report{% endblock %}
+{% block content %}
+{% include "reports/_report_nav.html" %}
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between">
+    <span class="fw-semibold">Production Orders</span>
+    <a href="{% url 'reports:export_csv' 'production' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> Export CSV</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-compact mb-0">
+      <thead><tr><th>Order #</th><th>Product</th><th>Planned Qty</th><th>Status</th><th>Due Date</th></tr></thead>
+      <tbody>
+      {% for order in orders %}
+        <tr><td>{{ order.order_number }}</td><td>{{ order.product }}</td><td>{{ order.planned_quantity }}</td>
+          <td><span class="badge badge-status-{{ order.status }}">{{ order.get_status_display }}</span></td><td>{{ order.due_date|default:"-" }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No data.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

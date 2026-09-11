@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card"><div class="kpi-label">Production Orders</div><div class="kpi-value">{{ total_production_orders }}</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card"><div class="kpi-label">Active Lots</div><div class="kpi-value">{{ active_lots }}</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card"><div class="kpi-label">Finished Goods Qty</div><div class="kpi-value">{{ finished_goods_quantity }}</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card"><div class="kpi-label">Rejection Rate</div><div class="kpi-value">{{ quality_rejection_rate }}%</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card"><div class="kpi-label">Rolling WIP</div><div class="kpi-value">{{ rolling_wip }}</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card"><div class="kpi-label">Forming WIP</div><div class="kpi-value">{{ forming_wip }}</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card"><div class="kpi-label">Heat Treatment WIP</div><div class="kpi-value">{{ heat_treatment_wip }}</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card"><div class="kpi-label">Finishing WIP</div><div class="kpi-value">{{ finishing_wip }}</div></div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="mb-3">Manufacturing Workflow</h6>
+    <div class="workflow-strip align-items-stretch">
+      {% for stage in stage_summary %}
+        <div class="workflow-stage">
+          <h6>{{ stage.label }}</h6>
+          <div class="small text-muted">Lots: <strong>{{ stage.total_lots }}</strong></div>
+          <div class="small text-muted">Input: <strong>{{ stage.input_quantity }}</strong></div>
+          <div class="small text-muted">Output: <strong>{{ stage.output_quantity }}</strong></div>
+          <div class="small text-muted">Rejected: <strong>{{ stage.rejection_quantity }}</strong></div>
+          <div class="small text-muted">Pending: <strong>{{ stage.pending }}</strong> &middot; Completed: <strong>{{ stage.completed }}</strong></div>
+        </div>
+        {% if not forloop.last %}<div class="workflow-arrow"><i class="bi bi-arrow-right"></i></div>{% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header bg-white fw-semibold">Recent Production Transactions</div>
+      <div class="table-responsive">
+        <table class="table table-compact mb-0">
+          <thead><tr><th>Stage</th><th>Transaction</th><th>Lot</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for t in recent_transactions %}
+            <tr><td class="text-capitalize">{{ t.stage|cut:"_"|default:t.stage }}</td><td>{{ t.transaction_number }}</td><td>{{ t.lot_number }}</td>
+              <td><span class="badge badge-status-{{ t.status }}">{{ t.status }}</span></td></tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">No transactions yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header bg-white fw-semibold">Pending Quality Approvals</div>
+      <div class="table-responsive">
+        <table class="table table-compact mb-0">
+          <thead><tr><th>FG Lot</th><th>Product</th><th>Accepted</th><th>Rejected</th></tr></thead>
+          <tbody>
+          {% for fg in pending_qc_approvals %}
+            <tr><td>{{ fg.fg_lot_number }}</td><td>{{ fg.product }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td></tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">Nothing pending approval.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header bg-white fw-semibold">Low Stock Alerts</div>
+      <div class="table-responsive">
+        <table class="table table-compact mb-0">
+          <thead><tr><th>Material</th><th>Location</th><th>Qty</th><th>Reorder Level</th></tr></thead>
+          <tbody>
+          {% for s in low_stock_alerts %}
+            <tr><td>{{ s.material.material_code }}</td><td>{{ s.location.name }}</td><td>{{ s.quantity }}</td><td>{{ s.material.reorder_level }}</td></tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">All raw material stock levels are healthy.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header bg-white fw-semibold">Recent Audit Activity</div>
+      <div class="table-responsive">
+        <table class="table table-compact mb-0">
+          <thead><tr><th>User</th><th>Action</th><th>Entity</th><th>When</th></tr></thead>
+          <tbody>
+          {% for log in recent_audit_logs %}
+            <tr><td>{{ log.user|default:"System" }}</td><td class="text-capitalize">{{ log.action }}</td><td>{{ log.entity_type }}</td><td>{{ log.created_at|date:"d M, H:i" }}</td></tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">No audit activity yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

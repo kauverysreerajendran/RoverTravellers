@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}WIP Stock{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white">
+    <form method="get" class="d-flex gap-2">
+      <select name="stage" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Stages</option>
+        {% for code, label in stage_choices %}
+          <option value="{{ code }}" {% if request.GET.stage == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-compact table-hover mb-0">
+      <thead class="table-light"><tr><th>Stage</th><th>Lot</th><th>Location</th><th>Quantity</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for s in stocks %}
+        <tr><td class="text-capitalize">{{ s.get_stage_display }}</td><td>{{ s.lot.lot_number }}</td><td>{{ s.location }}</td><td>{{ s.quantity }}</td>
+          <td><span class="badge badge-status-{{ s.status }}">{{ s.status }}</span></td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No WIP stock recorded.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

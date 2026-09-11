@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Inventory Report{% endblock %}
+{% block content %}
+{% include "reports/_report_nav.html" %}
+<div class="d-flex justify-content-end mb-2">
+  <a href="{% url 'reports:export_csv' 'inventory' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> Export CSV</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Raw Material</div>
+      <div class="table-responsive"><table class="table table-compact mb-0">
+        <thead><tr><th>Material</th><th>Qty</th></tr></thead>
+        <tbody>{% for s in raw_material_stock %}<tr><td>{{ s.material.material_code }}</td><td>{{ s.quantity }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">WIP</div>
+      <div class="table-responsive"><table class="table table-compact mb-0">
+        <thead><tr><th>Stage / Lot</th><th>Qty</th></tr></thead>
+        <tbody>{% for s in wip_stock %}<tr><td>{{ s.get_stage_display }} / {{ s.lot.lot_number }}</td><td>{{ s.quantity }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Finished Goods</div>
+      <div class="table-responsive"><table class="table table-compact mb-0">
+        <thead><tr><th>FG Lot</th><th>Qty</th></tr></thead>
+        <tbody>{% for s in finished_goods_stock %}<tr><td>{{ s.fg_lot_number }}</td><td>{{ s.accepted_quantity }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

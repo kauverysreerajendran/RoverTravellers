@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5">Order #</dt><dd class="col-7">{{ order.order_number }}</dd>
+          <dt class="col-5">Product</dt><dd class="col-7">{{ order.product }}</dd>
+          <dt class="col-5">Planned Qty</dt><dd class="col-7">{{ order.planned_quantity }} {{ order.uom }}</dd>
+          <dt class="col-5">Status</dt><dd class="col-7"><span class="badge badge-status-{{ order.status }}">{{ order.get_status_display }}</span></dd>
+          <dt class="col-5">Due Date</dt><dd class="col-7">{{ order.due_date|default:"-" }}</dd>
+          <dt class="col-5">Remarks</dt><dd class="col-7">{{ order.remarks|default:"-" }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-white d-flex justify-content-between">
+        <span class="fw-semibold">Lots</span>
+        <a href="{% url 'production:lot_create' %}" class="btn btn-sm btn-primary">New Lot</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-compact mb-0">
+          <thead><tr><th>Lot #</th><th>Stage</th><th>Qty</th><th>Hold</th><th></th></tr></thead>
+          <tbody>
+          {% for lot in lots %}
+            <tr>
+              <td>{{ lot.lot_number }}</td><td class="text-capitalize">{{ lot.get_current_stage_display }}</td>
+              <td>{{ lot.quantity }}</td><td>{% if lot.is_on_hold %}<span class="badge bg-warning-subtle text-warning">Hold</span>{% else %}-{% endif %}</td>
+              <td><a href="{% url 'production:lot_detail' lot.pk %}" class="btn btn-sm btn-outline-secondary">Trace</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No lots created for this order yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

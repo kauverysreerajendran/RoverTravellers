@@ -1,0 +1,12 @@
+{% comment %}Expects `steps`: a list of {code, label, state in done|active|pending}{% endcomment %}
+<div class="stepper">
+  {% for step in steps %}
+    <div class="stepper-step is-{{ step.state }}">
+      <div class="stepper-line"></div>
+      <div class="stepper-circle">
+        {% if step.state == "done" %}<i class="bi bi-check-lg"></i>{% else %}{{ forloop.counter }}{% endif %}
+      </div>
+      <div class="stepper-label">{{ step.label }}</div>
+    </div>
+  {% endfor %}
+</div>

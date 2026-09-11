@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Date-wise Summary{% endblock %}
+{% block content %}
+{% include "reports/_report_nav.html" %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-compact mb-0">
+      <thead><tr><th>Date</th><th>Stage</th><th>Transactions</th><th>Input</th><th>Output</th><th>Rejection</th></tr></thead>
+      <tbody>
+      {% for s in summaries %}
+        <tr><td>{{ s.day }}</td><td class="text-capitalize">{{ s.stage }}</td><td>{{ s.count }}</td>
+          <td>{{ s.total_input }}</td><td>{{ s.total_output }}</td><td>{{ s.total_rejection }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No data available.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

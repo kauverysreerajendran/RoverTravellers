@@ -1,0 +1,10 @@
+<ul class="nav nav-pills mb-3 flex-wrap">
+  <li class="nav-item"><a class="nav-link {% if page_title == "Production Report" %}active{% endif %}" href="{% url 'reports:production' %}">Production</a></li>
+  <li class="nav-item"><a class="nav-link {% if page_title == "Process-wise Report" %}active{% endif %}" href="{% url 'reports:process_wise' %}">Process-wise</a></li>
+  <li class="nav-item"><a class="nav-link {% if page_title == "Lot Traceability Report" %}active{% endif %}" href="{% url 'reports:traceability' %}">Traceability</a></li>
+  <li class="nav-item"><a class="nav-link {% if page_title == "Inventory Report" %}active{% endif %}" href="{% url 'reports:inventory' %}">Inventory</a></li>
+  <li class="nav-item"><a class="nav-link {% if page_title == "Rejection Report" %}active{% endif %}" href="{% url 'reports:rejection' %}">Rejection</a></li>
+  <li class="nav-item"><a class="nav-link {% if page_title == "Quality Report" %}active{% endif %}" href="{% url 'reports:quality' %}">Quality</a></li>
+  <li class="nav-item"><a class="nav-link {% if page_title == "Finished Goods Report" %}active{% endif %}" href="{% url 'reports:finished_goods' %}">Finished Goods</a></li>
+  <li class="nav-item"><a class="nav-link {% if page_title == "Date-wise Summary" %}active{% endif %}" href="{% url 'reports:date_summary' %}">Date-wise Summary</a></li>
+</ul>

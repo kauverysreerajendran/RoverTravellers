@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Audit Logs{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white">
+    <form method="get" class="d-flex gap-2">
+      <select name="action" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Actions</option>
+        {% for code, label in action_choices %}
+          <option value="{{ code }}" {% if request.GET.action == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="entity_type" class="form-control form-control-sm" placeholder="Entity type" value="{{ request.GET.entity_type }}">
+      <button class="btn btn-sm btn-outline-secondary" type="submit">Filter</button>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-compact table-hover mb-0">
+      <thead class="table-light"><tr><th>Date</th><th>User</th><th>Action</th><th>Entity</th><th>Description</th></tr></thead>
+      <tbody>
+      {% for log in logs %}
+        <tr><td>{{ log.created_at|date:"d M Y H:i" }}</td><td>{{ log.user|default:"System" }}</td>
+          <td class="text-capitalize">{{ log.action }}</td><td>{{ log.entity_type }} #{{ log.entity_id|slice:":8" }}</td>
+          <td>{{ log.description }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No audit activity recorded.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if is_paginated %}
+  <div class="card-footer bg-white">
+    <nav><ul class="pagination pagination-sm mb-0">
+      {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+      <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+      {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

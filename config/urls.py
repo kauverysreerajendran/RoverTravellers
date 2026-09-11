@@ -1,0 +1,36 @@
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.urls import include, path
+from django.views.generic import RedirectView
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("", RedirectView.as_view(pattern_name="dashboard:overview", permanent=False)),
+    path("accounts/", include("apps.accounts.urls")),
+    path("dashboard/", include("apps.dashboard.urls")),
+    path("master-data/", include("apps.master_data.urls")),
+    path("production/", include("apps.production.urls")),
+    path("rolling/", include("apps.rolling.urls")),
+    path("forming/", include("apps.forming.urls")),
+    path("heat-treatment/", include("apps.heat_treatment.urls")),
+    path("finishing/", include("apps.finishing.urls")),
+    path("finished-goods/", include("apps.finished_goods.urls")),
+    path("inventory/", include("apps.inventory.urls")),
+    path("reports/", include("apps.reports.urls")),
+    path("audit/", include("apps.audit.urls")),
+    path("api/", include("apps.accounts.api_urls")),
+    path("api/", include("apps.master_data.api_urls")),
+    path("api/", include("apps.production.api_urls")),
+    path("api/", include("apps.rolling.api_urls")),
+    path("api/", include("apps.forming.api_urls")),
+    path("api/", include("apps.heat_treatment.api_urls")),
+    path("api/", include("apps.finishing.api_urls")),
+    path("api/", include("apps.finished_goods.api_urls")),
+    path("api/", include("apps.inventory.api_urls")),
+    path("api/", include("apps.reports.api_urls")),
+    path("api/", include("apps.dashboard.api_urls")),
+]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

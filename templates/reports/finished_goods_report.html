@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Finished Goods Report{% endblock %}
+{% block content %}
+{% include "reports/_report_nav.html" %}
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-end">
+    <a href="{% url 'reports:export_csv' 'finished-goods' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> Export CSV</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-compact mb-0">
+      <thead><tr><th>FG Lot</th><th>Product</th><th>Accepted</th><th>Rejected</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>
+      {% for item in items %}
+        <tr><td>{{ item.fg_lot_number }}</td><td>{{ item.product.product_code }}</td><td>{{ item.accepted_quantity }}</td>
+          <td>{{ item.rejected_quantity }}</td><td><span class="badge badge-status-{{ item.status }}">{{ item.status }}</span></td>
+          <td>{{ item.created_at|date:"d M Y" }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No finished goods recorded.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

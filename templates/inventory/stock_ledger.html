@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Stock Ledger{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white">
+    <form method="get" class="d-flex gap-2">
+      <select name="stock_type" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Types</option>
+        {% for code, label in stock_type_choices %}
+          <option value="{{ code }}" {% if request.GET.stock_type == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-compact table-hover mb-0">
+      <thead class="table-light"><tr><th>Date</th><th>Type</th><th>Movement</th><th>Reference</th><th>Location</th><th>Qty</th><th>Balance</th></tr></thead>
+      <tbody>
+      {% for t in transactions %}
+        <tr><td>{{ t.created_at|date:"d M Y H:i" }}</td><td class="text-capitalize">{{ t.get_stock_type_display }}</td>
+          <td class="text-capitalize">{{ t.get_movement_type_display }}</td>
+          <td>{% if t.material %}{{ t.material.material_code }}{% elif t.lot %}{{ t.lot.lot_number }}{% else %}-{% endif %}</td><td>{{ t.location }}</td>
+          <td>{{ t.quantity }}</td><td>{{ t.balance_after }}</td></tr>
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No stock transactions recorded.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

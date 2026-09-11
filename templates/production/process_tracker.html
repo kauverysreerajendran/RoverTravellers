@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Process Tracker{% endblock %}
+{% block content %}
+<div class="card mb-3">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>Manufacturing Process{% if featured_lot %} &middot; {{ featured_lot.lot_number }}{% endif %}</span>
+    <form method="get" class="d-flex gap-2">
+      <select name="lot" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Most recent active lot</option>
+        {% for lot in lots %}
+          <option value="{{ lot.pk }}" {% if featured_lot.pk == lot.pk %}selected{% endif %}>{{ lot.lot_number }} ({{ lot.get_current_stage_display }})</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="card-body">
+    {% if stepper_steps %}
+      {% include "production/_stepper.html" with steps=stepper_steps %}
+      {% if featured_lot %}
+        <div class="text-center mt-2">
+          <a href="{% url 'production:lot_detail' featured_lot.pk %}" class="small">View full traceability for {{ featured_lot.lot_number }} &rarr;</a>
+        </div>
+      {% endif %}
+    {% else %}
+      <p class="text-muted text-center mb-0 py-3">No lots yet. Create a production lot to see it move through the pipeline here.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header bg-white fw-semibold">Batches</div>
+  <div class="table-responsive">
+    <table class="table table-compact table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>Batch</th><th>Product</th><th>Diameter (mm)</th><th>Quantity (KG)</th><th>Status</th><th>Current Stage</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.lot.lot_number }}</td>
+          <td>{{ row.lot.production_order.product.product_code }}</td>
+          <td>{{ row.diameter|default:"-" }}</td>
+          <td>{{ row.lot.quantity }}</td>
+          <td><span class="badge badge-status-{{ row.status }}"><span class="badge-dot"></span>{{ row.status|title }}</span></td>
+          <td class="text-capitalize">{{ row.lot.get_current_stage_display }}</td>
+          <td><a href="{% url 'production:lot_detail' row.lot.pk %}" class="btn btn-sm btn-outline-secondary">View</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No batches recorded yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if is_paginated %}
+  <div class="card-footer bg-white">
+    <nav><ul class="pagination pagination-sm mb-0">
+      {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+      <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+      {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Sign In{% endblock %}
+{% block auth_content %}
+<div class="login-split" style="background-image: url('{% static 'images/1.png' %}');">
+  <div class="login-left">
+    <div class="login-card">
+      <div class="brand-row">
+        <span class="brand-logo-wrap"><img src="{% static 'images/tr_logo.webp' %}" class="brand-logo" alt="Rover"></span>
+        <div class="brand-text">
+          <div class="brand-name">TRAVELLER</div>
+          <div class="brand-tagline">PRECISION IN EVERY TURN</div>
+        </div>
+      </div>
+
+      <h1 class="login-title">Welcome Back</h1>
+      <p class="login-subtitle">Sign in to access Rover Manufacturing System</p>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2">{{ form.non_field_errors.0 }}</div>
+      {% endif %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags|default:'info' }} py-2">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+
+      <form method="post" novalidate class="login-form">
+        {% csrf_token %}
+        <div class="login-field mb-3">
+          <span class="login-field-icon"><i class="bi bi-envelope"></i></span>
+          {{ form.username }}
+        </div>
+        <div class="login-field mb-2">
+          <span class="login-field-icon"><i class="bi bi-lock"></i></span>
+          {{ form.password }}
+          <button class="login-field-toggle" type="button" id="togglePassword"><i class="bi bi-eye"></i></button>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-4 mt-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="remember_me" id="rememberMe" checked>
+            <label class="form-check-label small" for="rememberMe">Keep me signed in</label>
+          </div>
+          <a href="{% url 'accounts:forgot_password' %}" class="small login-link">Forgot password?</a>
+        </div>
+        <button type="submit" class="btn login-submit w-100" id="signInBtn">
+          Sign In <i class="bi bi-arrow-right ms-1"></i>
+        </button>
+      </form>
+
+      <p class="small login-demo-text mt-3 mb-0">Demo login: <strong>admin</strong> / <strong>RoverAdmin@123</strong></p>
+
+      <div class="login-footer">
+        <div class="login-footer-name">Rover Traveller Pvt. Ltd.</div>
+        <div class="login-footer-tags">Manufacturing &nbsp;|&nbsp; Inventory &nbsp;|&nbsp; Growth Together</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-right">
+    <div class="login-right-overlay">
+      <div class="login-right-nav">
+        <span>QUALITY</span><i class="bi bi-dot"></i><span>PEOPLE</span><i class="bi bi-dot"></i><span>PROGRESS</span>
+      </div>
+      <div class="login-right-caption">
+        <div class="login-right-caption-line">From Raw Material</div>
+        <div class="login-right-caption-line">to Precision</div>
+        <div class="login-right-caption-strong">A Stronger Tomorrow</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  document.getElementById("togglePassword").addEventListener("click", function () {
+    var pwd = document.querySelector('input[name="password"]');
+    pwd.type = pwd.type === "password" ? "text" : "password";
+    this.querySelector("i").classList.toggle("bi-eye");
+    this.querySelector("i").classList.toggle("bi-eye-slash");
+  });
+  document.querySelector(".login-form").addEventListener("submit", function () {
+    var btn = document.getElementById("signInBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in...';
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Lot Traceability Report{% endblock %}
+{% block content %}
+{% include "reports/_report_nav.html" %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="d-flex gap-2">
+      <input type="text" name="lot_number" class="form-control" placeholder="Enter Lot Number e.g. LOT-2026-00001" value="{{ lot_number }}">
+      <button class="btn btn-primary">Search</button>
+    </form>
+  </div>
+</div>
+{% if lot_number and not lot %}
+  <div class="alert alert-warning">No lot found matching "{{ lot_number }}".</div>
+{% elif lot %}
+  <div class="card">
+    <div class="card-body">
+      <p>Lot <strong>{{ lot.lot_number }}</strong> is currently at stage <strong>{{ lot.get_current_stage_display }}</strong>.</p>
+      <a href="{% url 'production:lot_detail' lot.pk %}" class="btn btn-outline-primary btn-sm">View Full Traceability</a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
