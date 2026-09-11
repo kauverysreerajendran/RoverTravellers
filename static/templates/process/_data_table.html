@@ -1,0 +1,151 @@
+{% comment %}
+Shared, config-driven table used by BOTH the Main Table and the Complete
+Table of every process. Columns and cell values arrive pre-resolved from
+the process registry, so this markup contains no process-specific field
+names and never has to change when a process is added.
+{% endcomment %}
+<div class="card process-table-card">
+  <div class="card-header bg-white process-toolbar">
+    <form method="get" class="process-filters">
+      <div class="process-search">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ search }}" placeholder="{{ search_placeholder }}" autocomplete="off">
+      </div>
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Filter by status">
+        <option value="">All Statuses</option>
+        {% for code, label in status_choices %}
+          <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Rows per page">
+        {% for size in page_sizes %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }} / page</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button>
+      {% if search or status %}
+        <a href="{{ request.path }}" class="btn btn-sm btn-link">Clear</a>
+      {% endif %}
+    </form>
+    {% if create_url %}
+      <a href="{{ create_url }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> {{ create_label }}</a>
+    {% endif %}
+  </div>
+
+  {% if table_error %}
+    <div class="process-state process-state-error">
+      <i class="bi bi-exclamation-octagon"></i>
+      <div>
+        <div class="process-state-title">This table could not be loaded</div>
+        <div class="process-state-sub">{{ table_error }}</div>
+      </div>
+    </div>
+  {% else %}
+  <div class="table-responsive process-table-scroll">
+    <table class="table table-compact table-hover mb-0 process-table">
+      <thead class="table-light">
+        <tr>
+          {% for column in columns %}
+            <th class="{% if column.kind == 'number' %}text-end{% endif %}{% if column.order_by %} th-sortable{% endif %}">
+              {% if column.order_by %}
+                {% if sort == column.order_by and sort_dir == 'asc' %}
+                  <a href="?sort={{ column.order_by }}&dir=desc{{ sort_querystring }}" class="th-sort is-sorted">
+                    {{ column.label }} <i class="bi bi-sort-up"></i></a>
+                {% elif sort == column.order_by %}
+                  <a href="?sort={{ column.order_by }}&dir=asc{{ sort_querystring }}" class="th-sort is-sorted">
+                    {{ column.label }} <i class="bi bi-sort-down"></i></a>
+                {% else %}
+                  <a href="?sort={{ column.order_by }}&dir=asc{{ sort_querystring }}" class="th-sort">
+                    {{ column.label }} <i class="bi bi-chevron-expand"></i></a>
+                {% endif %}
+              {% else %}
+                {{ column.label }}
+              {% endif %}
+            </th>
+          {% endfor %}
+          {% if has_actions %}<th class="text-end col-actions">Action</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in pending_rows %}
+          <tr class="row-pending">
+            {% for cell in row.cells %}{% include "process/_cell.html" %}{% endfor %}
+            {% if has_actions %}
+              <td class="text-end col-actions">
+                {% for action in row.actions %}
+                  <a href="{{ action.url }}" class="btn btn-sm btn-{{ action.style }}">{{ action.label }}</a>
+                {% endfor %}
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+
+        {% for row in rows %}
+          <tr>
+            {% for cell in row.cells %}{% include "process/_cell.html" %}{% endfor %}
+            {% if has_actions %}
+              <td class="text-end col-actions">
+                {% for action in row.actions %}
+                  <a href="{{ action.url }}" class="btn btn-sm btn-{{ action.style }}">{{ action.label }}</a>
+                {% endfor %}
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+
+        {% if not rows and not pending_rows %}
+          <tr>
+            <td colspan="{{ columns|length|add:1 }}">
+              <div class="process-state process-state-empty">
+                <i class="bi bi-inbox"></i>
+                <div>
+                  <div class="process-state-title">
+                    {% if search or status %}No records match this filter{% else %}No {{ process_label|lower }} records yet{% endif %}
+                  </div>
+                  <div class="process-state-sub">
+                    {% if search or status %}
+                      Try clearing the search or status filter.
+                    {% else %}
+                      Records appear here as soon as material reaches {{ process_label }}.
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-footer bg-white process-table-footer">
+    <div class="process-count">
+      {% if page_obj %}
+        Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+      {% endif %}
+      {% if pending_rows %}<span class="pending-note">+ {{ pending_rows|length }} awaiting action</span>{% endif %}
+    </div>
+    {% if is_paginated %}
+      <nav aria-label="Pagination">
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page=1{{ querystring }}" aria-label="First">&laquo;</a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ querystring }}">Previous</a></li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+          <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+          {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{{ querystring }}">Next</a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{{ querystring }}" aria-label="Last">&raquo;</a></li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
+            <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

@@ -1,17 +1,8 @@
 from apps.production.services import complete_stage
-from apps.production.stage_views import StageCompleteView, StageCreateView, StageDetailView, StageListView
+from apps.production.stage_views import StageCompleteView, StageCreateView, StageDetailView
 
 from .forms import FormingCompleteForm, FormingInitiateForm
 from .models import FormingTransaction
-
-
-class FormingListView(StageListView):
-    model = FormingTransaction
-    stage = "forming"
-    page_title = "Forming"
-    detail_url_name = "forming:detail"
-    create_url_name = "forming:create"
-    complete_url_name = "forming:complete"
 
 
 class FormingCreateView(StageCreateView):
@@ -23,8 +14,8 @@ class FormingCreateView(StageCreateView):
     complete_url_name = "forming:complete"
     checklist = [
         "Select the completed Rolling lot and a Forming Machine",
-        "Pick the date - Wire Serial, Traveller No and Received Weight are auto-filled",
-        "Initiating creates the transaction; enter Finished Weight etc. on the Complete screen",
+        "Pick the date - Wire Serial, Traveller No and Finished Weight are auto-filled",
+        "Initiating creates the transaction; enter Output Weight etc. on the Complete screen",
         "Completing the transaction stages the output for Heat Treatment",
     ]
 

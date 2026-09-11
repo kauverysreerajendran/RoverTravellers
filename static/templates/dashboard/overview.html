@@ -54,10 +54,10 @@
       <div class="card-header bg-white fw-semibold">Recent Production Transactions</div>
       <div class="table-responsive">
         <table class="table table-compact mb-0">
-          <thead><tr><th>Stage</th><th>Transaction</th><th>Lot</th><th>Status</th></tr></thead>
+          <thead><tr><th>Stage</th><th>Transaction</th><th>Wire Serial</th><th>Status</th></tr></thead>
           <tbody>
           {% for t in recent_transactions %}
-            <tr><td class="text-capitalize">{{ t.stage|cut:"_"|default:t.stage }}</td><td>{{ t.transaction_number }}</td><td>{{ t.lot_number }}</td>
+            <tr><td class="text-capitalize">{{ t.stage|cut:"_"|default:t.stage }}</td><td>{{ t.transaction_number }}</td><td>{{ t.wire_serial|default:"-" }}</td>
               <td><span class="badge badge-status-{{ t.status }}">{{ t.status }}</span></td></tr>
           {% empty %}
             <tr><td colspan="4" class="text-center text-muted py-3">No transactions yet.</td></tr>
@@ -73,12 +73,12 @@
       <div class="card-header bg-white fw-semibold">Pending Quality Approvals</div>
       <div class="table-responsive">
         <table class="table table-compact mb-0">
-          <thead><tr><th>FG Lot</th><th>Product</th><th>Accepted</th><th>Rejected</th></tr></thead>
+          <thead><tr><th>FG Batch</th><th>Wire Serial</th><th>Product</th><th>Accepted</th><th>Rejected</th></tr></thead>
           <tbody>
           {% for fg in pending_qc_approvals %}
-            <tr><td>{{ fg.fg_lot_number }}</td><td>{{ fg.product }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td></tr>
+            <tr><td>{{ fg.fg_lot_number }}</td><td>{{ fg.lot.wire_serial|default:"-" }}</td><td>{{ fg.product }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td></tr>
           {% empty %}
-            <tr><td colspan="4" class="text-center text-muted py-3">Nothing pending approval.</td></tr>
+            <tr><td colspan="5" class="text-center text-muted py-3">Nothing pending approval.</td></tr>
           {% endfor %}
           </tbody>
         </table>

@@ -8,10 +8,10 @@
   </div>
   <div class="table-responsive">
     <table class="table table-compact mb-0">
-      <thead><tr><th>Stage</th><th>Transaction</th><th>Lot</th><th>Machine</th><th>Rejection Qty</th><th>Reason</th><th>Date</th></tr></thead>
+      <thead><tr><th>Stage</th><th>Transaction</th><th>Wire Serial</th><th>Machine</th><th>Rejection Qty</th><th>Reason</th><th>Date</th></tr></thead>
       <tbody>
       {% for r in rows %}
-        <tr><td class="text-capitalize">{{ r.stage }}</td><td>{{ r.transaction_number }}</td><td>{{ r.lot_number }}</td>
+        <tr><td class="text-capitalize">{{ r.stage }}</td><td>{{ r.transaction_number }}</td><td>{{ r.wire_serial|default:"-" }}</td>
           <td>{{ r.machine }}</td><td>{{ r.rejection_quantity }}</td><td>{{ r.reason }}</td><td>{{ r.created_at|date:"d M Y" }}</td></tr>
       {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No rejections recorded.</td></tr>{% endfor %}
       </tbody>

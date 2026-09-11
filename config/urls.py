@@ -12,6 +12,9 @@ urlpatterns = [
     path("master-data/", include("apps.master_data.urls")),
     path("masters/", include("apps.masters.urls")),
     path("production/", include("apps.production.urls")),
+    # Dynamic per-process Main Table / Complete Table screens. One route
+    # pair serves every process in apps.production.process_registry.
+    path("process/", include("apps.production.process_urls")),
     path("rolling/", include("apps.rolling.urls")),
     path("forming/", include("apps.forming.urls")),
     path("heat-treatment/", include("apps.heat_treatment.urls")),

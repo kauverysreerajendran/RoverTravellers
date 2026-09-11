@@ -1,0 +1,24 @@
+{% comment %}
+Dynamic process menu. Rendered entirely from `process_nav` (built by
+apps.dashboard.context_processors from the process registry), so every
+process automatically gets its Main Table / Complete Table submenus and
+adding a process never touches this markup.
+{% endcomment %}
+{% for group in process_nav %}
+  <div class="nav-group{% if group.is_active %} is-active{% endif %}" data-process="{{ group.slug }}">
+    <button type="button" class="nav-link nav-group-toggle{% if group.is_active %} active{% endif %}"
+            aria-expanded="{% if group.is_active %}true{% else %}false{% endif %}"
+            aria-controls="submenu-{{ group.slug }}" title="{{ group.label }}">
+      <i class="bi {{ group.icon }}"></i>
+      <span class="nav-label">{{ group.label }}</span>
+      <i class="bi bi-chevron-down nav-caret"></i>
+    </button>
+    <div class="nav-submenu" id="submenu-{{ group.slug }}"{% if not group.is_active %} hidden{% endif %}>
+      {% for item in group.submenus %}
+        <a class="nav-sublink{% if item.is_active %} active{% endif %}" href="{{ item.url }}">
+          <span class="nav-subdot"></span><span class="nav-label">{{ item.label }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+{% endfor %}

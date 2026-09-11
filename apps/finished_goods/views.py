@@ -4,7 +4,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import View
-from django.views.generic import DetailView, ListView
+from django.views.generic import DetailView
 
 from apps.finishing.models import FinishingTransaction
 from apps.inventory.models import FinishedGoodsStock, WIPStock
@@ -12,35 +12,6 @@ from apps.production.models import ProductionLot
 
 from . import services
 from .forms import FinishedGoodsReceiveForm
-
-
-class FinishedGoodsListView(LoginRequiredMixin, ListView):
-    model = FinishedGoodsStock
-    template_name = "finished_goods/finished_goods_list.html"
-    context_object_name = "items"
-    paginate_by = 20
-
-    def get_queryset(self):
-        qs = FinishedGoodsStock.objects.select_related(
-            "product", "lot", "lot__source_rolling_batch", "location"
-        ).order_by("-created_at")
-        status = self.request.GET.get("status")
-        if status:
-            qs = qs.filter(status=status)
-        return qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx["page_title"] = "Finished Goods"
-        ctx["status_choices"] = FinishedGoodsStock._meta.get_field("status").choices
-        received_lot_ids = FinishedGoodsStock.objects.values_list("lot_id", flat=True)
-        ctx["pending_lots"] = (
-            ProductionLot.objects.filter(current_stage="finished_goods")
-            .exclude(pk__in=list(received_lot_ids))
-            .select_related("source_rolling_batch")
-            .order_by("-created_at")
-        )
-        return ctx
 
 
 class FinishedGoodsReceiveView(LoginRequiredMixin, View):

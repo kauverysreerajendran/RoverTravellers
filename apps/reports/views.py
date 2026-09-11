@@ -49,8 +49,10 @@ class InventoryReportView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx["page_title"] = "Inventory Report"
         ctx["raw_material_stock"] = RawMaterialStock.objects.select_related("material", "location")
-        ctx["wip_stock"] = WIPStock.objects.select_related("lot", "location")
-        ctx["finished_goods_stock"] = FinishedGoodsStock.objects.select_related("product", "lot", "location")
+        ctx["wip_stock"] = WIPStock.objects.select_related("lot", "lot__source_rolling_batch", "location")
+        ctx["finished_goods_stock"] = FinishedGoodsStock.objects.select_related(
+            "product", "lot", "lot__source_rolling_batch", "location"
+        )
         return ctx
 
 
@@ -62,12 +64,12 @@ class RejectionReportView(LoginRequiredMixin, TemplateView):
         ctx["page_title"] = "Rejection Report"
         rows = []
         for stage, model in STAGE_MODELS.items():
-            for txn in model.objects.filter(rejection_quantity__gt=0).select_related("lot", "machine")[:200]:
+            for txn in model.objects.filter(rejection_quantity__gt=0).select_related("lot", "lot__source_rolling_batch", "machine")[:200]:
                 rows.append(
                     {
                         "stage": stage,
                         "transaction_number": txn.transaction_number,
-                        "lot_number": txn.lot.lot_number,
+                        "wire_serial": txn.lot.wire_serial,
                         "machine": txn.machine.name,
                         "rejection_quantity": txn.rejection_quantity,
                         "reason": txn.rejection_reason.description if txn.rejection_reason else "",
@@ -95,7 +97,9 @@ class FinishedGoodsReportView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["page_title"] = "Finished Goods Report"
-        ctx["items"] = FinishedGoodsStock.objects.select_related("product", "lot", "location").order_by("-created_at")
+        ctx["items"] = FinishedGoodsStock.objects.select_related(
+            "product", "lot", "lot__source_rolling_batch", "location"
+        ).order_by("-created_at")
         return ctx
 
 
@@ -133,23 +137,23 @@ def export_csv(request, report_type):
     writer = csv.writer(response)
 
     if report_type == "finished-goods":
-        writer.writerow(["FG Lot", "Product", "Lot", "Accepted Qty", "Rejected Qty", "Status", "Quality Approved", "Created At"])
-        for item in FinishedGoodsStock.objects.select_related("product", "lot"):
+        writer.writerow(["FG Batch", "Product", "Wire Serial", "Accepted Qty", "Rejected Qty", "Status", "Quality Approved", "Created At"])
+        for item in FinishedGoodsStock.objects.select_related("product", "lot", "lot__source_rolling_batch"):
             writer.writerow([
-                item.fg_lot_number, item.product.product_code, item.lot.lot_number,
+                item.fg_lot_number, item.product.product_code, item.lot.wire_serial,
                 item.accepted_quantity, item.rejected_quantity, item.status, item.quality_approved, item.created_at,
             ])
     elif report_type == "inventory":
         writer.writerow(["Type", "Reference", "Location", "Quantity", "Status"])
         for s in RawMaterialStock.objects.select_related("material", "location"):
             writer.writerow(["Raw Material", s.material.material_code, s.location.name, s.quantity, s.status])
-        for s in WIPStock.objects.select_related("lot", "location"):
-            writer.writerow(["WIP", s.lot.lot_number, s.location.name, s.quantity, s.status])
+        for s in WIPStock.objects.select_related("lot", "lot__source_rolling_batch", "location"):
+            writer.writerow(["WIP", s.lot.wire_serial, s.location.name, s.quantity, s.status])
     elif report_type == "rejection":
-        writer.writerow(["Stage", "Transaction", "Lot", "Rejection Qty", "Created At"])
+        writer.writerow(["Stage", "Transaction", "Wire Serial", "Rejection Qty", "Created At"])
         for stage, model in STAGE_MODELS.items():
-            for txn in model.objects.filter(rejection_quantity__gt=0).select_related("lot"):
-                writer.writerow([stage, txn.transaction_number, txn.lot.lot_number, txn.rejection_quantity, txn.created_at])
+            for txn in model.objects.filter(rejection_quantity__gt=0).select_related("lot", "lot__source_rolling_batch"):
+                writer.writerow([stage, txn.transaction_number, txn.lot.wire_serial, txn.rejection_quantity, txn.created_at])
     else:
         writer.writerow(["Order Number", "Product", "Planned Qty", "Status", "Created At"])
         for order in ProductionOrder.objects.select_related("product"):

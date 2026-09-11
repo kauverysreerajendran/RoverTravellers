@@ -92,7 +92,7 @@ def get_dashboard_summary():
             {
                 "stage": "rolling",
                 "transaction_number": batch.wire_serial,
-                "lot_number": batch.traveller_type.name,
+                "wire_serial": batch.wire_serial,
                 "status": batch.status,
                 "created_at": batch.created_at,
             }
@@ -103,7 +103,7 @@ def get_dashboard_summary():
                 {
                     "stage": stage,
                     "transaction_number": txn.transaction_number,
-                    "lot_number": txn.lot.lot_number,
+                    "wire_serial": txn.lot.wire_serial,
                     "status": txn.status,
                     "created_at": txn.created_at,
                 }

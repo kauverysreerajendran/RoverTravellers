@@ -84,6 +84,12 @@ class FinishedGoodsStock(TimeStampedModel):
         if self.status == "available" and not self.quality_approved:
             raise ValidationError("Finished goods cannot be marked available without quality approval.")
 
+    @property
+    def received_quantity(self):
+        """Weight handed over by Finishing - what was booked in here,
+        accepted plus rejected. Displayed as "Finished Weight"."""
+        return (self.accepted_quantity or Decimal("0")) + (self.rejected_quantity or Decimal("0"))
+
     def __str__(self):
         return self.fg_lot_number
 

@@ -93,21 +93,7 @@
       <a class="nav-link {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard:overview' %}" title="Dashboard">
         <i class="bi bi-house-door"></i><span class="nav-label">Dashboard</span>
       </a>
-      <a class="nav-link {% if request.resolver_match.app_name == 'rolling' %}active{% endif %}" href="{% url 'rolling:list' %}" title="Rolling">
-        <i class="bi bi-arrow-repeat"></i><span class="nav-label">Rolling</span>
-      </a>
-      <a class="nav-link {% if request.resolver_match.app_name == 'forming' %}active{% endif %}" href="{% url 'forming:list' %}" title="Forming">
-        <i class="bi bi-bounding-box"></i><span class="nav-label">Forming</span>
-      </a>
-      <a class="nav-link {% if request.resolver_match.app_name == 'heat_treatment' %}active{% endif %}" href="{% url 'heat_treatment:list' %}" title="Heat Treatment">
-        <i class="bi bi-fire"></i><span class="nav-label">Heat Treatment</span>
-      </a>
-      <a class="nav-link {% if request.resolver_match.app_name == 'finishing' %}active{% endif %}" href="{% url 'finishing:list' %}" title="Finishing">
-        <i class="bi bi-brightness-high"></i><span class="nav-label">Finishing</span>
-      </a>
-      <a class="nav-link {% if request.resolver_match.app_name == 'finished_goods' %}active{% endif %}" href="{% url 'finished_goods:list' %}" title="Finished Goods">
-        <i class="bi bi-box-seam"></i><span class="nav-label">Finished Goods</span>
-      </a>
+      {% include "process/_sidebar_menu.html" %}
 
       <div class="sidebar-divider"></div>
 

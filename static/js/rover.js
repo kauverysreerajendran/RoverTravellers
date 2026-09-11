@@ -60,6 +60,68 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // ---- Process submenus (Main Table / Complete Table) ----------------
+  // Groups are rendered server-side from the process registry; the active
+  // group always starts open, and any group the user opens by hand is
+  // remembered across navigations.
+  var STORE_KEY = "roverOpenProcessGroups";
+
+  function readOpenGroups() {
+    try {
+      return JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writeOpenGroups(slugs) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(slugs)); } catch (e) {}
+  }
+
+  function setGroupOpen(group, open) {
+    var toggle = group.querySelector(".nav-group-toggle");
+    var submenu = group.querySelector(".nav-submenu");
+    if (!toggle || !submenu) return;
+    submenu.hidden = !open;
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  var groups = document.querySelectorAll(".nav-group");
+  if (groups.length) {
+    var remembered = readOpenGroups();
+
+    groups.forEach(function (group) {
+      // The active group stays open regardless of what was remembered, so
+      // a refresh or a direct URL never lands on a collapsed submenu.
+      if (group.classList.contains("is-active")) {
+        setGroupOpen(group, true);
+      } else if (remembered.indexOf(group.dataset.process) !== -1) {
+        setGroupOpen(group, true);
+      }
+
+      var toggle = group.querySelector(".nav-group-toggle");
+      if (!toggle) return;
+      toggle.addEventListener("click", function () {
+        // On the collapsed icon rail the submenu is not visible, so
+        // expand the rail first and then open the group.
+        if (document.documentElement.classList.contains("rover-sidebar-collapsed")) {
+          document.documentElement.classList.remove("rover-sidebar-collapsed");
+          try { localStorage.setItem("roverSidebarExpanded", "true"); } catch (e) {}
+          setGroupOpen(group, true);
+        } else {
+          setGroupOpen(group, toggle.getAttribute("aria-expanded") !== "true");
+        }
+
+        var open = [];
+        document.querySelectorAll(".nav-group").forEach(function (g) {
+          var t = g.querySelector(".nav-group-toggle");
+          if (t && t.getAttribute("aria-expanded") === "true") open.push(g.dataset.process);
+        });
+        writeOpenGroups(open);
+      });
+    });
+  }
+
   var collapseBtn = document.getElementById("sidebarCollapseToggle");
   if (collapseBtn) {
     collapseBtn.addEventListener("click", function () {

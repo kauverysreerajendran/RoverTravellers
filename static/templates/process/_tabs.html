@@ -1,0 +1,9 @@
+{% comment %}In-page switch between this process's two tables.{% endcomment %}
+<div class="process-tabs">
+  <a href="{% url 'process:main' process=process_slug %}" class="process-tab{% if submenu == 'main' %} active{% endif %}">
+    <i class="bi bi-table"></i> Main Table
+  </a>
+  <a href="{% url 'process:complete' process=process_slug %}" class="process-tab{% if submenu == 'complete' %} active{% endif %}">
+    <i class="bi bi-list-columns-reverse"></i> Complete Table
+  </a>
+</div>

@@ -4,47 +4,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.generic import CreateView, DetailView, ListView, View
+from django.views.generic import CreateView, DetailView, View
 
 from .models import OperationQualityCheck
-
-
-class StageListView(LoginRequiredMixin, ListView):
-    paginate_by = 20
-    stage = None
-    page_title = ""
-    template_name = "production/stage_list.html"
-    detail_url_name = ""
-    create_url_name = ""
-    complete_url_name = ""
-
-    def get_queryset(self):
-        qs = self.model.objects.select_related("lot", "lot__source_rolling_batch", "machine", "operator", "shift").order_by("-created_at")
-        status = self.request.GET.get("status")
-        if status:
-            qs = qs.filter(status=status)
-        return qs
-
-    def get_context_data(self, **kwargs):
-        from .models import STATUS_CHOICES, ProductionLot
-
-        ctx = super().get_context_data(**kwargs)
-        ctx["page_title"] = self.page_title
-        ctx["status_choices"] = STATUS_CHOICES
-        ctx["detail_url_name"] = self.detail_url_name
-        ctx["create_url_name"] = self.create_url_name
-        ctx["complete_url_name"] = self.complete_url_name
-        ctx["stage"] = self.stage
-        # Main table row for material that has completed the previous
-        # process but has not yet had this stage's transaction initiated.
-        started_lot_ids = self.model.objects.values_list("lot_id", flat=True)
-        ctx["pending_lots"] = (
-            ProductionLot.objects.filter(current_stage=self.stage)
-            .exclude(pk__in=list(started_lot_ids))
-            .select_related("source_rolling_batch")
-            .order_by("-created_at")
-        )
-        return ctx
 
 
 class StageCreateView(LoginRequiredMixin, CreateView):
@@ -87,7 +49,8 @@ class StageCreateView(LoginRequiredMixin, CreateView):
         form.instance.created_by = self.request.user
         form.instance.updated_by = self.request.user
         form.instance.status = "draft" if "save_draft" in self.request.POST else "in_progress"
-        # Received Weight always comes from the previous process's WIP
+        # Finished Weight (what the previous process handed over) always
+        # comes from that process's WIP
         # balance, never trusted from the client-submitted form value.
         available = (
             WIPStock.objects.filter(stage=self.stage, lot=lot, status="available")
@@ -137,7 +100,7 @@ class StageDetailView(LoginRequiredMixin, DetailView):
 class StageCompleteView(LoginRequiredMixin, View):
     """The stage's Complete table: shows the previous-process fields
     auto-populated on the transaction plus the completion-only inputs
-    (e.g. Finished Weight), and finalizes the transaction on submit.
+    (e.g. Output Weight), and finalizes the transaction on submit.
     Concrete stage apps subclass this and set `model`, `complete_form_class`
     and `complete_fn`."""
 

@@ -9,12 +9,12 @@ from .models import FormingTransaction
 
 class FormingInitiateForm(StyledModelForm):
     """Initiate screen: pick the completed Rolling lot, a Forming Machine
-    and a date. Received Weight is auto-filled server-side, never entered."""
+    and a date. Finished Weight is auto-filled server-side, never entered."""
 
     class Meta:
         model = FormingTransaction
         fields = ["lot", "machine", "operation_date", "input_quantity"]
-        labels = {"input_quantity": "Received Weight (kg)"}
+        labels = {"input_quantity": "Finished Weight (kg)"}
         widgets = {"operation_date": forms.DateInput(attrs={"type": "date"})}
 
     def __init__(self, *args, **kwargs):
@@ -36,7 +36,7 @@ FormingTransactionForm = FormingInitiateForm
 
 
 class FormingCompleteForm(StyledModelForm):
-    """Complete table: Finished Weight, Traveller Length, Traveller Weight -
+    """Complete table: Output Weight, Traveller Length, Traveller Weight -
     entered when the user completes the Forming transaction. Wastage is
     calculated and saved server-side on submit."""
 
@@ -46,7 +46,13 @@ class FormingCompleteForm(StyledModelForm):
             "output_quantity", "traveller_length_mm", "traveller_weight_kg",
             "rejection_quantity", "rejection_reason", "remarks",
         ]
-        labels = {"output_quantity": "Finished Weight (kg)"}
+        labels = {
+            "output_quantity": "Output Weight (kg)",
+            "traveller_length_mm": "Traveller Length (mm)",
+            "traveller_weight_kg": "Traveller Weight (kg)",
+            "rejection_quantity": "Rejection (kg)",
+            "rejection_reason": "Rejection Reason",
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

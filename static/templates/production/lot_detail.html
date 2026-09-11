@@ -64,7 +64,7 @@
 <div class="card">
   <div class="card-header bg-white fw-semibold">Finished Goods</div>
   <div class="table-responsive"><table class="table table-compact mb-0">
-    <thead><tr><th>FG Lot #</th><th>Accepted</th><th>Rejected</th><th>Status</th><th>Quality Approved</th></tr></thead>
+    <thead><tr><th>FG Batch #</th><th>Accepted</th><th>Rejected</th><th>Status</th><th>Quality Approved</th></tr></thead>
     <tbody>
       {% for fg in finished_goods %}
         <tr><td>{{ fg.fg_lot_number }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td>

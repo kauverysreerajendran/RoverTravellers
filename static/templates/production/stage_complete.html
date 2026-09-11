@@ -18,7 +18,7 @@
           <dt class="col-6">Surface Finish</dt><dd class="col-6">{{ object.lot.surface_finish|default:"-" }}</dd>
           <dt class="col-6">Machine</dt><dd class="col-6">{{ object.machine }}</dd>
           <dt class="col-6">Date</dt><dd class="col-6">{{ object.operation_date|default:"-" }}</dd>
-          <dt class="col-6">Weight Received</dt><dd class="col-6"><strong id="weight-received-value">{{ object.input_quantity }}</strong> kg</dd>
+          <dt class="col-6">Finished Weight</dt><dd class="col-6"><strong id="weight-received-value">{{ object.input_quantity }}</strong> kg</dd>
           <dt class="col-6">Status</dt><dd class="col-6"><span class="badge badge-status-{{ object.status }}">{{ object.get_status_display }}</span></dd>
         </dl>
       </div>
@@ -44,7 +44,7 @@
             <div class="col-md-6">
               <label class="form-label">Wastage (kg)</label>
               <input type="text" class="form-control" id="wastage-preview" readonly value="-">
-              <div class="form-text">Weight Received - Finished Weight (calculated automatically)</div>
+              <div class="form-text">Finished Weight - Output Weight (calculated automatically)</div>
             </div>
             <div class="col-md-6">
               <label class="form-label">Wastage %</label>

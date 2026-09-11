@@ -87,7 +87,7 @@
       <div class="stat-tiles mb-3">
         <div class="stat-tile"><div class="stat-tile-label">Rolled Thickness</div><div class="stat-tile-value">{{ batch.rolled_thickness_mm }}<small>mm</small></div></div>
         <div class="stat-tile"><div class="stat-tile-label">Rolled Width</div><div class="stat-tile-value">{{ batch.rolled_width_mm }}<small>mm</small></div></div>
-        <div class="stat-tile"><div class="stat-tile-label">Finished Weight</div><div class="stat-tile-value">{{ batch.finished_weight_kg }}<small>kg</small></div></div>
+        <div class="stat-tile"><div class="stat-tile-label">Output Weight</div><div class="stat-tile-value">{{ batch.finished_weight_kg }}<small>kg</small></div></div>
         <div class="stat-tile is-accent"><div class="stat-tile-label">Wastage</div><div class="stat-tile-value">{{ batch.wastage_kg }}<small>kg</small></div></div>
       </div>
       <div class="detail-grid">
@@ -120,7 +120,7 @@
             <div class="form-text">Target: {{ batch.f_width_mm }} mm</div>
           </div>
           <div class="col-12">
-            <label class="form-label">Finished Weight (kg) <span class="req">*</span></label>
+            <label class="form-label">Output Weight (kg) <span class="req">*</span></label>
             <div class="input-group"><span class="input-group-text"><i class="bi bi-lock"></i></span>{{ complete_form.finished_weight_kg }}<span class="input-group-text">kg</span></div>
             <div class="form-text">Issued: {{ batch.wire_weight_issued_kg }} kg — wastage = issued − finished</div>
           </div>

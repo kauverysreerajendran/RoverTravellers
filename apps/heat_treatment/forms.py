@@ -12,7 +12,7 @@ class HeatTreatmentInitiateForm(StyledModelForm):
     class Meta:
         model = HeatTreatmentTransaction
         fields = ["lot", "tt", "t_no", "batch_number", "operation_date", "surface_finish", "machine", "input_quantity"]
-        labels = {"input_quantity": "Received Weight (kg)", "batch_number": "Batch No"}
+        labels = {"input_quantity": "Finished Weight (kg)", "batch_number": "Batch No"}
         widgets = {"operation_date": forms.DateInput(attrs={"type": "date"})}
 
     def __init__(self, *args, **kwargs):
@@ -41,7 +41,14 @@ class HeatTreatmentCompleteForm(StyledModelForm):
             "output_quantity", "heat_treatment_type", "temperature_celsius", "holding_time_minutes",
             "rejection_quantity", "rejection_reason", "remarks",
         ]
-        labels = {"output_quantity": "Finished/Actual Weight (kg)"}
+        labels = {
+            "output_quantity": "Output Weight (kg)",
+            "heat_treatment_type": "Heat Treatment Type",
+            "temperature_celsius": "Temperature (C)",
+            "holding_time_minutes": "Holding Time (min)",
+            "rejection_quantity": "Rejection (kg)",
+            "rejection_reason": "Rejection Reason",
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -30,7 +30,7 @@ class WIPStockListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        qs = models.WIPStock.objects.select_related("lot", "location").order_by("stage", "-created_at")
+        qs = models.WIPStock.objects.select_related("lot", "lot__source_rolling_batch", "location").order_by("stage", "-created_at")
         stage = self.request.GET.get("stage")
         if stage:
             qs = qs.filter(stage=stage)
@@ -52,7 +52,7 @@ class FinishedGoodsStockListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        return models.FinishedGoodsStock.objects.select_related("product", "lot", "location").order_by("-created_at")
+        return models.FinishedGoodsStock.objects.select_related("product", "lot", "lot__source_rolling_batch", "location").order_by("-created_at")
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

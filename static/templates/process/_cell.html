@@ -1,0 +1,18 @@
+{% comment %}Renders one pre-resolved cell according to its declared kind.{% endcomment %}
+{% if cell.kind == "status" %}
+  <td><span class="badge badge-status-{{ cell.code }}">{{ cell.value }}</span></td>
+{% elif cell.kind == "number" %}
+  <td class="text-end num">{{ cell.value|default_if_none:"-" }}</td>
+{% elif cell.kind == "date" %}
+  <td>{% if cell.value %}{{ cell.value|date:"d M Y" }}{% else %}-{% endif %}</td>
+{% elif cell.kind == "time" %}
+  <td>{% if cell.value %}{{ cell.value|time:"H:i" }}{% else %}-{% endif %}</td>
+{% elif cell.kind == "datetime" %}
+  <td>{% if cell.value %}{{ cell.value|date:"d M Y H:i" }}{% else %}-{% endif %}</td>
+{% elif cell.kind == "bool" %}
+  <td>{{ cell.value|yesno:"Yes,No,-" }}</td>
+{% elif cell.strong %}
+  <td><strong>{{ cell.value|default_if_none:"-" }}</strong></td>
+{% else %}
+  <td>{{ cell.value|default_if_none:"-" }}</td>
+{% endif %}

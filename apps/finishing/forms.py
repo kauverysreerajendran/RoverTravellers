@@ -12,7 +12,7 @@ class FinishingInitiateForm(StyledModelForm):
     class Meta:
         model = FinishingTransaction
         fields = ["lot", "tt", "t_no", "batch_no", "operation_date", "surface_finish", "machine", "input_quantity"]
-        labels = {"input_quantity": "Received Weight (kg)"}
+        labels = {"input_quantity": "Finished Weight (kg)"}
         widgets = {"operation_date": forms.DateInput(attrs={"type": "date"})}
 
     def __init__(self, *args, **kwargs):
@@ -38,7 +38,13 @@ class FinishingCompleteForm(StyledModelForm):
     class Meta:
         model = FinishingTransaction
         fields = ["output_quantity", "traveller_weight_kg", "colour", "rejection_quantity", "rejection_reason", "remarks"]
-        labels = {"output_quantity": "Finished Weight (kg)"}
+        labels = {
+            "output_quantity": "Output Weight (kg)",
+            "traveller_weight_kg": "Traveller Weight (kg)",
+            "colour": "Colour",
+            "rejection_quantity": "Rejection (kg)",
+            "rejection_reason": "Rejection Reason",
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

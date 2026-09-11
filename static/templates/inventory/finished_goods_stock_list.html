@@ -8,10 +8,10 @@
   </div>
   <div class="table-responsive">
     <table class="table table-compact table-hover mb-0">
-      <thead class="table-light"><tr><th>FG Lot #</th><th>Product</th><th>Lot</th><th>Accepted</th><th>Rejected</th><th>Status</th><th></th></tr></thead>
+      <thead class="table-light"><tr><th>FG Batch #</th><th>Product</th><th>Wire Serial</th><th>Accepted</th><th>Rejected</th><th>Status</th><th></th></tr></thead>
       <tbody>
       {% for s in stocks %}
-        <tr><td>{{ s.fg_lot_number }}</td><td>{{ s.product.product_code }}</td><td>{{ s.lot.lot_number }}</td>
+        <tr><td>{{ s.fg_lot_number }}</td><td>{{ s.product.product_code }}</td><td>{{ s.lot.wire_serial|default:"-" }}</td>
           <td>{{ s.accepted_quantity }}</td><td>{{ s.rejected_quantity }}</td>
           <td><span class="badge badge-status-{{ s.status }}">{{ s.status }}</span></td>
           <td><a href="{% url 'finished_goods:detail' s.pk %}" class="btn btn-sm btn-outline-secondary">View</a></td></tr>

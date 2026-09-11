@@ -14,10 +14,10 @@
   </div>
   <div class="table-responsive">
     <table class="table table-compact table-hover mb-0">
-      <thead class="table-light"><tr><th>Stage</th><th>Lot</th><th>Location</th><th>Quantity</th><th>Status</th></tr></thead>
+      <thead class="table-light"><tr><th>Stage</th><th>Wire Serial</th><th>Location</th><th>Quantity</th><th>Status</th></tr></thead>
       <tbody>
       {% for s in stocks %}
-        <tr><td class="text-capitalize">{{ s.get_stage_display }}</td><td>{{ s.lot.lot_number }}</td><td>{{ s.location }}</td><td>{{ s.quantity }}</td>
+        <tr><td class="text-capitalize">{{ s.get_stage_display }}</td><td>{{ s.lot.wire_serial|default:"-" }}</td><td>{{ s.location }}</td><td>{{ s.quantity }}</td>
           <td><span class="badge badge-status-{{ s.status }}">{{ s.status }}</span></td></tr>
       {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No WIP stock recorded.</td></tr>{% endfor %}
       </tbody>

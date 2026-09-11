@@ -4,11 +4,10 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import View
-from django.views.generic import DetailView, ListView
+from django.views.generic import DetailView
 
 from apps.masters import services as masters_services
 from apps.masters.models import TravellerType
@@ -18,59 +17,6 @@ from .forms import RollingCompleteForm, RollingInitiateForm
 from .models import RollingBatch
 
 PAGE_ICON = "bi-disc"
-
-
-class RollingListView(LoginRequiredMixin, ListView):
-    model = RollingBatch
-    template_name = "rolling/rolling_list.html"
-    context_object_name = "batches"
-    PER_PAGE_OPTIONS = (10, 25, 50, 100)
-
-    def get_paginate_by(self, queryset):
-        try:
-            per_page = int(self.request.GET.get("per_page", 10))
-        except (TypeError, ValueError):
-            per_page = 10
-        return per_page if per_page in self.PER_PAGE_OPTIONS else 10
-
-    def get_queryset(self):
-        qs = (
-            RollingBatch.objects.select_related("traveller_type", "traveller_no", "finish")
-            .prefetch_related("coils_used__coil")
-            .order_by("-created_at")
-        )
-        status = self.request.GET.get("status")
-        if status:
-            qs = qs.filter(status=status)
-        q = self.request.GET.get("q", "").strip()
-        if q:
-            qs = qs.filter(
-                Q(wire_serial__icontains=q)
-                | Q(traveller_type__name__icontains=q)
-                | Q(traveller_no__code__icontains=q)
-                | Q(finish__finish_name__icontains=q)
-            )
-        return qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        params = self.request.GET.copy()
-        params.pop("page", None)
-        ctx.update({
-            "page_title": "Rolling",
-            "page_subtitle": "Manage and track all rolling batches",
-            "page_icon": PAGE_ICON,
-            "status_choices": RollingBatch._meta.get_field("status").choices,
-            "search_query": self.request.GET.get("q", "").strip(),
-            "per_page": self.get_paginate_by(None),
-            "per_page_options": self.PER_PAGE_OPTIONS,
-            "qs": params.urlencode(),
-        })
-        if ctx.get("is_paginated"):
-            ctx["page_range"] = list(
-                ctx["paginator"].get_elided_page_range(ctx["page_obj"].number, on_each_side=1, on_ends=1)
-            )
-        return ctx
 
 
 class RollingCreateView(LoginRequiredMixin, View):

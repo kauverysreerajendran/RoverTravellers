@@ -8,13 +8,13 @@
   </div>
   <div class="table-responsive">
     <table class="table table-compact mb-0">
-      <thead><tr><th>FG Lot</th><th>Product</th><th>Accepted</th><th>Rejected</th><th>Status</th><th>Date</th></tr></thead>
+      <thead><tr><th>FG Batch</th><th>Wire Serial</th><th>Product</th><th>Accepted</th><th>Rejected</th><th>Status</th><th>Date</th></tr></thead>
       <tbody>
       {% for item in items %}
-        <tr><td>{{ item.fg_lot_number }}</td><td>{{ item.product.product_code }}</td><td>{{ item.accepted_quantity }}</td>
+        <tr><td>{{ item.fg_lot_number }}</td><td>{{ item.lot.wire_serial|default:"-" }}</td><td>{{ item.product.product_code }}</td><td>{{ item.accepted_quantity }}</td>
           <td>{{ item.rejected_quantity }}</td><td><span class="badge badge-status-{{ item.status }}">{{ item.status }}</span></td>
           <td>{{ item.created_at|date:"d M Y" }}</td></tr>
-      {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No finished goods recorded.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No finished goods recorded.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

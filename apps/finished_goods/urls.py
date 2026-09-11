@@ -1,11 +1,15 @@
 from django.urls import path
 
+from apps.production.process_views import LegacyListRedirectView
+
 from . import views
 
 app_name = "finished_goods"
 
 urlpatterns = [
-    path("", views.FinishedGoodsListView.as_view(), name="list"),
+    # Canonical Main Table now lives at /process/finished_goods/main/ - this
+    # legacy path redirects so existing links keep working.
+    path("", LegacyListRedirectView.as_view(process_slug="finished_goods"), name="list"),
     path("receive/", views.FinishedGoodsReceiveView.as_view(), name="receive"),
     path("<uuid:pk>/", views.FinishedGoodsDetailView.as_view(), name="detail"),
     path("<uuid:pk>/approve/", views.FinishedGoodsApproveView.as_view(), name="approve"),
