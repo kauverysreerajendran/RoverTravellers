@@ -14,9 +14,16 @@ HEAT_TREATMENT_TYPE_CHOICES = [
 
 class HeatTreatmentTransaction(OperationBase):
     batch_number = models.CharField(max_length=30, blank=True)
-    heat_treatment_type = models.CharField(max_length=20, choices=HEAT_TREATMENT_TYPE_CHOICES)
-    temperature_celsius = models.DecimalField(max_digits=8, decimal_places=2)
-    holding_time_minutes = models.DecimalField(max_digits=8, decimal_places=2)
+    heat_treatment_type = models.CharField(max_length=20, choices=HEAT_TREATMENT_TYPE_CHOICES, blank=True)
+    temperature_celsius = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    holding_time_minutes = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
+    # Spec section 9.2/9.4 fields.
+    tt = models.CharField("TT", max_length=50, blank=True)
+    t_no = models.CharField("T No", max_length=50, blank=True)
+    surface_finish = models.ForeignKey(
+        "masters.SurfaceFinish", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
 
     class Meta:
         ordering = ["-created_at"]

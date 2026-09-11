@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+
+<div class="section-card">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div class="d-flex align-items-center gap-3">
+      <div>
+        <div class="detail-label small text-uppercase text-muted" style="letter-spacing:.06em">Wire Serial</div>
+        <div class="fs-4 fw-bold">{{ batch.wire_serial }}</div>
+      </div>
+      <span class="pill {% if batch.status == 'Completed' %}pill-completed{% else %}pill-inprogress{% endif %} ms-2">{{ batch.get_status_display }}</span>
+    </div>
+    <div class="d-flex flex-wrap gap-4 small text-muted">
+      <div><i class="bi bi-calendar3 me-1"></i> Created {{ batch.created_at|date:"d M Y, H:i" }}{% if batch.created_by %} · {{ batch.created_by.get_full_name|default:batch.created_by.username }}{% endif %}</div>
+      {% if batch.completed_at %}<div><i class="bi bi-check2-circle me-1 text-success"></i> Completed {{ batch.completed_at|date:"d M Y, H:i" }}</div>{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'rolling:list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back to Rolling</a>
+      {% if batch.status != "Completed" and can_complete %}
+      <a href="#complete" class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1"></i> Complete Batch</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- ---------- Left: batch details ---------- -->
+  <div class="col-lg-7">
+    <div class="section-card h-100 mb-0">
+      <div class="section-head">
+        <div class="section-title">
+          <h6>Batch Details</h6>
+          <p>Values captured when the batch was created</p>
+        </div>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="detail-label">Traveller Type</div><div class="detail-value">{{ batch.traveller_type.name }}</div></div>
+        <div class="detail-item"><div class="detail-label">Traveller No</div><div class="detail-value">{{ batch.traveller_no.code }}</div></div>
+        <div class="detail-item"><div class="detail-label">Surface Finish</div><div class="detail-value">{{ batch.finish.finish_name }}</div></div>
+        <div class="detail-item"><div class="detail-label">Wire Diameter</div><div class="detail-value">{{ batch.wire_diameter_mm }} mm</div></div>
+        <div class="detail-item"><div class="detail-label">F-Thickness</div><div class="detail-value">{{ batch.f_thickness_mm }} mm</div></div>
+        <div class="detail-item"><div class="detail-label">F-Width</div><div class="detail-value">{{ batch.f_width_mm }} mm</div></div>
+        <div class="detail-item"><div class="detail-label">Required Box</div><div class="detail-value">{{ batch.required_box }}</div></div>
+        <div class="detail-item"><div class="detail-label">Wire Weight Issued</div><div class="detail-value">{{ batch.wire_weight_issued_kg }} kg</div></div>
+      </div>
+
+      <hr class="my-4">
+
+      <div class="section-title mb-3">
+        <h6>Coils Used</h6>
+        <p>Where the issued wire weight was drawn from</p>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-rover">
+          <thead><tr><th>S.No</th><th>Coil</th><th>Diameter</th><th>Rack</th><th class="text-end">Weight Taken (kg)</th></tr></thead>
+          <tbody>
+          {% for cu in coils_used %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td class="fw-semibold">Coil {{ cu.coil.coil_display_number }}</td>
+              <td>{{ cu.coil.raw_material_id }} · {{ cu.coil.raw_material.diameter_mm }} mm</td>
+              <td>{{ cu.coil.rack.rack_code|default:"-" }}</td>
+              <td class="text-end">{{ cu.weight_taken_kg }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr><td colspan="4" class="text-end fw-semibold">Total</td><td class="text-end fw-bold">{{ batch.wire_weight_issued_kg }}</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Right: completion / result ---------- -->
+  <div class="col-lg-5">
+    {% if batch.status == "Completed" %}
+    <div class="section-card h-100 mb-0">
+      <div class="section-head">
+        <div class="section-title">
+          <h6>Rolling Result</h6>
+          <p>Recorded at completion</p>
+        </div>
+        <span class="pill pill-completed">{{ batch.get_status_display }}</span>
+      </div>
+      <div class="stat-tiles mb-3">
+        <div class="stat-tile"><div class="stat-tile-label">Rolled Thickness</div><div class="stat-tile-value">{{ batch.rolled_thickness_mm }}<small>mm</small></div></div>
+        <div class="stat-tile"><div class="stat-tile-label">Rolled Width</div><div class="stat-tile-value">{{ batch.rolled_width_mm }}<small>mm</small></div></div>
+        <div class="stat-tile"><div class="stat-tile-label">Finished Weight</div><div class="stat-tile-value">{{ batch.finished_weight_kg }}<small>kg</small></div></div>
+        <div class="stat-tile is-accent"><div class="stat-tile-label">Wastage</div><div class="stat-tile-value">{{ batch.wastage_kg }}<small>kg</small></div></div>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="detail-label">Issued vs Finished</div><div class="detail-value">{{ batch.wire_weight_issued_kg }} → {{ batch.finished_weight_kg }} kg</div></div>
+        <div class="detail-item"><div class="detail-label">Target vs Rolled Thickness</div><div class="detail-value">{{ batch.f_thickness_mm }} → {{ batch.rolled_thickness_mm }} mm</div></div>
+        <div class="detail-item"><div class="detail-label">Target vs Rolled Width</div><div class="detail-value">{{ batch.f_width_mm }} → {{ batch.rolled_width_mm }} mm</div></div>
+        <div class="detail-item"><div class="detail-label">Completed At</div><div class="detail-value">{{ batch.completed_at|date:"d M Y, H:i" }}</div></div>
+      </div>
+    </div>
+
+    {% elif can_complete %}
+    <div class="section-card h-100 mb-0" id="complete">
+      <div class="section-head">
+        <div class="section-title">
+          <h6>Complete Rolling Batch</h6>
+          <p>Enter the rolled dimensions and finished weight; wastage is calculated automatically.</p>
+        </div>
+      </div>
+      <form method="post" action="{% url 'rolling:complete' batch.pk %}">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Rolled Thickness (mm) <span class="req">*</span></label>
+            <div class="input-group"><span class="input-group-text"><i class="bi bi-distribute-vertical"></i></span>{{ complete_form.rolled_thickness_mm }}</div>
+            <div class="form-text">Target: {{ batch.f_thickness_mm }} mm</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Rolled Width (mm) <span class="req">*</span></label>
+            <div class="input-group"><span class="input-group-text"><i class="bi bi-distribute-horizontal"></i></span>{{ complete_form.rolled_width_mm }}</div>
+            <div class="form-text">Target: {{ batch.f_width_mm }} mm</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Finished Weight (kg) <span class="req">*</span></label>
+            <div class="input-group"><span class="input-group-text"><i class="bi bi-lock"></i></span>{{ complete_form.finished_weight_kg }}<span class="input-group-text">kg</span></div>
+            <div class="form-text">Issued: {{ batch.wire_weight_issued_kg }} kg — wastage = issued − finished</div>
+          </div>
+        </div>
+        <div class="d-flex justify-content-end mt-4">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i> Complete &amp; Calculate Wastage</button>
+        </div>
+      </form>
+    </div>
+
+    {% else %}
+    <div class="section-card h-100 mb-0">
+      <div class="section-title">
+        <h6>Awaiting Completion</h6>
+        <p>This batch is in progress. A Production Manager, Quality Inspector or Admin will record the rolled dimensions and finished weight.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

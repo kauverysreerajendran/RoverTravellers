@@ -7,9 +7,7 @@ def nav_context(request):
         "app_name": "Rover Traveller",
     }
     if getattr(request, "user", None) and request.user.is_authenticated:
-        from apps.inventory.models import FinishedGoodsStock
+        from apps.rolling.models import RollingBatch
 
-        ctx["pending_qc_count"] = FinishedGoodsStock.objects.filter(
-            quality_approved=False, status="hold"
-        ).count()
+        ctx["notification_count"] = RollingBatch.objects.filter(status="In Progress").count()
     return ctx

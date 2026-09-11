@@ -16,7 +16,11 @@ User = get_user_model()
 class RoverLoginView(LoginView):
     template_name = "accounts/login.html"
     authentication_form = RoverLoginForm
-    redirect_authenticated_user = True
+    # Always render the login screen when this URL is visited directly,
+    # even for an already-authenticated session, instead of bouncing to
+    # the dashboard. Submitting valid credentials still redirects normally
+    # via get_success_url()/LOGIN_REDIRECT_URL.
+    redirect_authenticated_user = False
 
     def form_valid(self, form):
         response = super().form_valid(form)

@@ -12,6 +12,8 @@ def receive_finished_goods(*, lot, product, accepted_quantity, rejected_quantity
         raise PermissionDenied("You are not authorized to receive finished goods.")
     if lot.current_stage != "finished_goods":
         raise ValidationError("Lot has not completed finishing yet.")
+    if not lot.wire_serial:
+        raise ValidationError("Wire Serial is missing for this lot - it cannot be received without a traceable Wire Serial.")
 
     total_quantity = accepted_quantity + rejected_quantity
     if total_quantity <= 0:

@@ -108,6 +108,12 @@ def _finalize(operation, user, next_stage):
     previous_status = operation.status
     operation.status = "completed"
     operation.updated_by = user
+    if hasattr(operation, "wastage_kg"):
+        wastage = (operation.input_quantity or 0) - (operation.output_quantity or 0)
+        operation.wastage_kg = wastage
+        operation.wastage_percent = (
+            (wastage / operation.input_quantity * 100) if operation.input_quantity else None
+        )
     operation.save()
 
     operation.lot.current_stage = next_stage

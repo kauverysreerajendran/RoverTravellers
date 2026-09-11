@@ -4,6 +4,7 @@ __pycache__/
 .env
 .venv/
 venv/
+env/
 staticfiles/
 media/*
 !media/.gitkeep
@@ -12,3 +13,16 @@ media/*
 .vscode/
 .idea/
 db.sqlite3
+
+# Django migrations are generated locally (run `manage.py makemigrations`
+# after a fresh clone before `migrate`) rather than version-controlled.
+apps/*/migrations/*.py
+!apps/*/migrations/__init__.py
+
+# Misc build/tooling artifacts
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+Thumbs.db
+*.bak
+*.tmp

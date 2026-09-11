@@ -1,0 +1,133 @@
+from decimal import Decimal
+
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
+from django.utils import timezone
+
+from apps.audit.models import log_action
+from apps.masters import services as masters_services
+from apps.masters.models import CoilMaster, DiameterTravellerMapping
+
+from .models import RollingBatch, RollingBatchCoil
+
+
+def _stage_rolling_output_for_forming(batch, user):
+    """Bridge P1 -> P2: a completed Rolling batch automatically becomes
+    available material in the Forming main table, via a ProductionLot +
+    WIP stock entry the existing Forming pipeline already consumes."""
+    from apps.inventory import services as inventory_services
+    from apps.master_data.models import MaterialMaster, ProductMaster, UnitOfMeasure
+    from apps.production.models import ProductionLot, ProductionOrder
+
+    uom, _ = UnitOfMeasure.objects.get_or_create(code="KG", defaults={"name": "Kilogram"})
+    material, _ = MaterialMaster.objects.get_or_create(
+        material_code="RM-ROLLING-WIRE",
+        defaults={"name": "Rolled Wire (Rolling Output)", "material_type": "wip", "unit_of_measure": uom},
+    )
+    product, _ = ProductMaster.objects.get_or_create(
+        product_code="WIP-ROLLED-WIRE",
+        defaults={"name": "Rolled Wire", "unit_of_measure": uom, "raw_material": material},
+    )
+    order = ProductionOrder.objects.create(
+        product=product, planned_quantity=batch.finished_weight_kg, uom="KG", status="in_progress",
+        remarks=f"Auto-created from Rolling batch {batch.wire_serial}",
+    )
+    lot = ProductionLot.objects.create(
+        production_order=order, current_stage="forming", quantity=batch.finished_weight_kg,
+        source_rolling_batch=batch, remarks=f"Wire serial {batch.wire_serial}",
+    )
+    inventory_services.add_wip(
+        "forming", lot, batch.finished_weight_kg, source_operation=batch, user=user,
+        remarks=f"Rolling {batch.wire_serial} completed, staged for Forming",
+    )
+    return lot
+
+
+@transaction.atomic
+def initiate_rolling_batch(*, traveller_type, traveller_no, finish, required_box, wire_weight_issued_kg,
+                            coil_weights, user):
+    """coil_weights: list of (coil_id, weight_taken_kg) tuples, one per
+    checked coil, matching the 'user enters weight per coil' behavior."""
+    if not user.can_operate_stage("rolling"):
+        raise PermissionDenied("You are not authorized to initiate a rolling batch.")
+
+    if not coil_weights:
+        raise ValidationError("Select at least one coil to issue wire weight from.")
+
+    total_taken = sum((w for _, w in coil_weights), Decimal("0"))
+    if total_taken != wire_weight_issued_kg:
+        raise ValidationError(
+            f"Selected coil weights total {total_taken} kg, which does not match "
+            f"the wire weight to issue ({wire_weight_issued_kg} kg)."
+        )
+
+    try:
+        mapping = DiameterTravellerMapping.objects.select_related("raw_material").get(traveller_type=traveller_type)
+    except DiameterTravellerMapping.DoesNotExist:
+        raise ValidationError(
+            f'No raw material mapping found for traveller type "{traveller_type.name}". '
+            "Contact your supervisor before proceeding."
+        )
+
+    wire_serial = masters_services.generate_wire_serial()
+
+    batch = RollingBatch(
+        wire_serial=wire_serial,
+        traveller_type=traveller_type,
+        traveller_no=traveller_no,
+        finish=finish,
+        wire_diameter_mm=mapping.raw_material.diameter_mm,
+        f_thickness_mm=mapping.f_thickness_mm,
+        f_width_mm=mapping.f_width_mm,
+        required_box=required_box,
+        wire_weight_issued_kg=wire_weight_issued_kg,
+        status="In Progress",
+        created_by=user,
+    )
+    batch.full_clean()
+    batch.save()
+
+    for coil_id, weight_taken in coil_weights:
+        coil = CoilMaster.objects.select_for_update().get(pk=coil_id)
+        if coil.raw_material_id != mapping.raw_material_id:
+            raise ValidationError(
+                f"Coil {coil.coil_display_number} is diameter {coil.raw_material_id}, "
+                f"but this traveller type requires {mapping.raw_material_id}."
+            )
+        masters_services.consume_coil(coil, weight_taken)
+        RollingBatchCoil.objects.create(batch=batch, coil=coil, weight_taken_kg=weight_taken)
+
+    log_action(
+        user, "create", batch,
+        description=f"Rolling batch {batch.wire_serial} initiated",
+        metadata={"traveller_type": traveller_type.name, "wire_weight_issued_kg": str(wire_weight_issued_kg)},
+    )
+    return batch
+
+
+@transaction.atomic
+def complete_rolling_batch(batch, *, rolled_thickness_mm, rolled_width_mm, finished_weight_kg, user):
+    if not user.can_approve():
+        raise PermissionDenied("You are not authorized to complete a rolling batch.")
+    if batch.status == "Completed":
+        raise ValidationError("This batch has already been completed.")
+    if finished_weight_kg > batch.wire_weight_issued_kg:
+        raise ValidationError("Finished weight cannot exceed the wire weight issued.")
+
+    batch.rolled_thickness_mm = rolled_thickness_mm
+    batch.rolled_width_mm = rolled_width_mm
+    batch.finished_weight_kg = finished_weight_kg
+    batch.wastage_kg = batch.wire_weight_issued_kg - finished_weight_kg
+    batch.status = "Completed"
+    batch.completed_at = timezone.now()
+    batch.full_clean()
+    batch.save()
+
+    _stage_rolling_output_for_forming(batch, user)
+
+    log_action(
+        user, "complete", batch,
+        description=f"Rolling batch {batch.wire_serial} completed",
+        metadata={"wastage_kg": str(batch.wastage_kg)},
+    )
+    return batch

@@ -64,6 +64,14 @@ class ProductionLot(TimeStampedModel):
     is_on_hold = models.BooleanField(default=False)
     remarks = models.TextField(blank=True)
 
+    # Set when this lot originates from a completed Rolling batch, so every
+    # downstream stage (Forming onward) can auto-populate Wire Serial,
+    # Traveller No/Date and Surface Finish from the actual previous-process
+    # transaction instead of the user re-entering them.
+    source_rolling_batch = models.ForeignKey(
+        "rolling.RollingBatch", on_delete=models.SET_NULL, null=True, blank=True, related_name="production_lots"
+    )
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["lot_number"]), models.Index(fields=["current_stage"])]
@@ -76,6 +84,35 @@ class ProductionLot(TimeStampedModel):
     def __str__(self):
         return self.lot_number
 
+    @property
+    def wire_serial(self):
+        return self.source_rolling_batch.wire_serial if self.source_rolling_batch_id else ""
+
+    @property
+    def traveller_no(self):
+        return self.source_rolling_batch.traveller_no if self.source_rolling_batch_id else None
+
+    @property
+    def traveller_date(self):
+        batch = self.source_rolling_batch
+        return batch.created_at.date() if batch and batch.created_at else None
+
+    @property
+    def surface_finish(self):
+        return self.source_rolling_batch.finish if self.source_rolling_batch_id else None
+
+    @property
+    def date_out(self):
+        """Date the material physically left the previous process (Rolling
+        batch completion), distinct from `traveller_date` (when it was issued)."""
+        batch = self.source_rolling_batch
+        return batch.completed_at.date() if batch and batch.completed_at else None
+
+    @property
+    def time_out(self):
+        batch = self.source_rolling_batch
+        return batch.completed_at.time() if batch and batch.completed_at else None
+
 
 class OperationBase(TimeStampedModel):
     """Abstract base shared by every stage transaction (Rolling, Forming,
@@ -85,9 +122,12 @@ class OperationBase(TimeStampedModel):
     transaction_number = models.CharField(max_length=30, unique=True, db_index=True, editable=False)
     lot = models.ForeignKey(ProductionLot, on_delete=models.PROTECT, related_name="%(class)s_operations")
     machine = models.ForeignKey("master_data.Machine", on_delete=models.PROTECT, related_name="+")
-    operator = models.ForeignKey("master_data.Employee", on_delete=models.PROTECT, related_name="+")
-    shift = models.ForeignKey("master_data.Shift", on_delete=models.PROTECT, related_name="+")
-    start_time = models.DateTimeField()
+    operator = models.ForeignKey(
+        "master_data.Employee", on_delete=models.PROTECT, related_name="+", null=True, blank=True
+    )
+    shift = models.ForeignKey("master_data.Shift", on_delete=models.PROTECT, related_name="+", null=True, blank=True)
+    operation_date = models.DateField(null=True, blank=True)
+    start_time = models.DateTimeField(null=True, blank=True)
     end_time = models.DateTimeField(null=True, blank=True)
     input_quantity = models.DecimalField(max_digits=14, decimal_places=3)
     output_quantity = models.DecimalField(max_digits=14, decimal_places=3, default=Decimal("0"))

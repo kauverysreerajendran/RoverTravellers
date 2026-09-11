@@ -9,10 +9,12 @@ from apps.heat_treatment.models import HeatTreatmentTransaction
 from apps.inventory.models import FinishedGoodsStock, RawMaterialStock, WIPStock
 from apps.master_data.models import MaterialMaster
 from apps.production.models import ProductionLot, ProductionOrder
-from apps.rolling.models import RollingTransaction
+from apps.rolling.models import RollingBatch
 
+# Rolling is deliberately excluded: it now runs on its own wire-serial/coil
+# model (RollingBatch) rather than the generic OperationBase shape shared by
+# Forming/Heat Treatment/Finishing, so it's summarized separately below.
 STAGE_MODELS = {
-    "rolling": RollingTransaction,
     "forming": FormingTransaction,
     "heat_treatment": HeatTreatmentTransaction,
     "finishing": FinishingTransaction,
@@ -23,8 +25,22 @@ def _sum(qs, field):
     return qs.aggregate(total=Sum(field))["total"] or Decimal("0")
 
 
+def get_rolling_summary():
+    qs = RollingBatch.objects.all()
+    return {
+        "stage": "rolling",
+        "label": "Rolling",
+        "total_lots": qs.count(),
+        "input_quantity": _sum(qs, "wire_weight_issued_kg"),
+        "output_quantity": _sum(qs, "finished_weight_kg"),
+        "rejection_quantity": _sum(qs, "wastage_kg"),
+        "pending": qs.filter(status="In Progress").count(),
+        "completed": qs.filter(status="Completed").count(),
+    }
+
+
 def get_stage_summary():
-    summary = []
+    summary = [get_rolling_summary()]
     for stage, model in STAGE_MODELS.items():
         qs = model.objects.all()
         summary.append(
@@ -53,8 +69,9 @@ def get_dashboard_summary():
 
     fg_quantity = _sum(FinishedGoodsStock.objects.filter(status="available"), "accepted_quantity")
 
-    total_output = Decimal("0")
-    total_rejection = Decimal("0")
+    rolling_summary = get_rolling_summary()
+    total_output = rolling_summary["output_quantity"]
+    total_rejection = rolling_summary["rejection_quantity"]
     for model in STAGE_MODELS.values():
         total_output += _sum(model.objects.all(), "output_quantity")
         total_rejection += _sum(model.objects.all(), "rejection_quantity")
@@ -70,6 +87,16 @@ def get_dashboard_summary():
     recent_audit = AuditLog.objects.select_related("user").all()[:10]
 
     recent_transactions = []
+    for batch in RollingBatch.objects.all()[:5]:
+        recent_transactions.append(
+            {
+                "stage": "rolling",
+                "transaction_number": batch.wire_serial,
+                "lot_number": batch.traveller_type.name,
+                "status": batch.status,
+                "created_at": batch.created_at,
+            }
+        )
     for stage, model in STAGE_MODELS.items():
         for txn in model.objects.select_related("lot")[:5]:
             recent_transactions.append(
@@ -87,7 +114,7 @@ def get_dashboard_summary():
     return {
         "total_production_orders": total_orders,
         "active_lots": active_lots,
-        "rolling_wip": wip_by_stage.get("rolling", Decimal("0")),
+        "rolling_wip": rolling_summary["pending"],
         "forming_wip": wip_by_stage.get("forming", Decimal("0")),
         "heat_treatment_wip": wip_by_stage.get("heat_treatment", Decimal("0")),
         "finishing_wip": wip_by_stage.get("finishing", Decimal("0")),

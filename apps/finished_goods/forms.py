@@ -19,6 +19,9 @@ class FinishedGoodsReceiveForm(forms.Form):
         super().__init__(*args, **kwargs)
         from apps.master_data.models import Location, ProductMaster, Rack, Shelf, Tray
 
+        self.fields["lot"].label_from_instance = lambda lot: (
+            f"{lot.wire_serial or lot.lot_number} - Traveller {lot.traveller_no} ({lot.quantity} kg)"
+        )
         self.fields["product"].queryset = ProductMaster.active.all()
         self.fields["location"].queryset = Location.active.filter(location_type="fg")
         self.fields["rack"].queryset = Rack.active.all()

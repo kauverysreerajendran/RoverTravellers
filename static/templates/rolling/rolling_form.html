@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<form method="post" id="rollingForm" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+  <!-- ============ Batch Details ============ -->
+  <div class="section-card">
+    <div class="section-head">
+      <div class="section-title">
+        <h6>Batch Details</h6>
+        <p>Enter the basic information for the rolling batch</p>
+      </div>
+    </div>
+
+    <div class="field-grid">
+      <div class="field-col">
+        <label class="form-label">Wire Serial</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-upc"></i></span>
+          <input type="text" class="form-control" value="{{ next_wire_serial.serial_no|default:'None available' }}" readonly>
+        </div>
+      </div>
+
+      <div class="field-col">
+        <label class="form-label">Traveller Type <span class="req">*</span></label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-tags"></i></span>
+          <div class="rover-select" id="travellerTypeSelect">
+            <button type="button" class="rover-select-toggle" id="ttToggle" aria-haspopup="listbox" aria-expanded="false">
+              <span id="ttToggleLabel" class="rover-select-placeholder">Select traveller type</span>
+              <i class="bi bi-chevron-down"></i>
+            </button>
+            <div class="rover-select-panel" id="ttPanel" hidden>
+              <div class="rover-select-search">
+                <i class="bi bi-search"></i>
+                <input type="text" id="ttSearch" placeholder="Search traveller type..." autocomplete="off">
+              </div>
+              <ul class="rover-select-options" id="ttOptions" role="listbox">
+                {% for t in traveller_types %}
+                  <li class="rover-select-option" role="option" data-id="{{ t.traveller_type_id }}" data-name="{{ t.name }}">
+                    <span class="rover-select-seq">{{ t.seq_no }}</span>{{ t.name }}
+                  </li>
+                {% endfor %}
+              </ul>
+              <div class="rover-select-empty" id="ttEmpty" hidden>No traveller type matches that search.</div>
+            </div>
+          </div>
+        </div>
+        {{ form.traveller_type_id }}
+        <div id="mappingError" class="text-danger small mt-1" hidden></div>
+        {% if form.traveller_type_id.errors %}<div class="text-danger small mt-1">{{ form.traveller_type_id.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="field-col">
+        <label class="form-label">Traveller No <span class="req">*</span></label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-tag"></i></span>
+          {{ form.traveller_no }}
+        </div>
+        {% if form.traveller_no.errors %}<div class="text-danger small mt-1">{{ form.traveller_no.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="field-col">
+        <label class="form-label">Surface Finish <span class="req">*</span></label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-brush"></i></span>
+          {{ form.finish }}
+        </div>
+        {% if form.finish.errors %}<div class="text-danger small mt-1">{{ form.finish.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="field-col">
+        <label class="form-label">Wire Dia (mm)</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-slash-circle"></i></span>
+          <input type="text" class="form-control" id="wireDiameterDisplay" readonly placeholder="Auto">
+        </div>
+      </div>
+
+      <div class="field-col">
+        <label class="form-label">F-Thickness (mm)</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-distribute-vertical"></i></span>
+          <input type="text" class="form-control" id="fThicknessDisplay" readonly placeholder="Auto">
+        </div>
+      </div>
+      <div class="field-col">
+        <label class="form-label">F-Width (mm)</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-distribute-horizontal"></i></span>
+          <input type="text" class="form-control" id="fWidthDisplay" readonly placeholder="Auto">
+        </div>
+      </div>
+      <div class="field-col">
+        <label class="form-label">Required Box <span class="req">*</span></label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-box"></i></span>
+          {{ form.required_box }}
+        </div>
+        {% if form.required_box.errors %}<div class="text-danger small mt-1">{{ form.required_box.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="field-col field-col-wide">
+        <label class="form-label">Wire Weight to Issue (kg) <span class="req">*</span></label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-lock"></i></span>
+          {{ form.wire_weight_issued_kg }}
+          <span class="input-group-text">kg</span>
+        </div>
+        {% if form.wire_weight_issued_kg.errors %}<div class="text-danger small mt-1">{{ form.wire_weight_issued_kg.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Select Coils ============ -->
+  <div class="section-card">
+    <div class="section-head">
+      <div class="section-title">
+        <h6>Select Coils</h6>
+        <p>Choose the coil(s) to draw wire weight from. Enter how much weight to take from each checked coil.</p>
+      </div>
+      <div class="stat-badge" id="availableBadge" hidden>
+        <i class="bi bi-exclamation-circle"></i>
+        <div>
+          <div class="stat-badge-label">Total Available Weight</div>
+          <div class="stat-badge-value"><span id="availableTotal">0.00</span> kg</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-rover" id="coilTable">
+        <thead>
+          <tr>
+            <th style="width:44px"><input type="checkbox" class="form-check-input" id="coilCheckAll" title="Select all" disabled></th>
+            <th>Coil</th>
+            <th>Available Weight (kg)</th>
+            <th>Rack Location</th>
+            <th style="width:220px">Weight to Take (kg)</th>
+          </tr>
+        </thead>
+        <tbody id="coilList">
+          <tr><td colspan="5" class="text-muted small py-4 text-center">Select a Traveller Type first to load the coils available for its diameter.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex flex-wrap align-items-center gap-3 mt-2 small">
+      <span>Selected total: <strong id="coilTotal">0.00</strong> kg</span>
+      <span>Required: <strong id="requiredTotal">0.00</strong> kg</span>
+      <span id="coilTotalStatus"></span>
+    </div>
+
+    {{ form.coils_json }}
+    {% if form.coils_json.errors %}<div class="text-danger small mt-1">{{ form.coils_json.errors.0 }}</div>{% endif %}
+  </div>
+
+  <div class="form-footer">
+    <a href="{% url 'rolling:list' %}" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary" id="submitBtn">
+      <i class="bi bi-chevron-right me-1"></i> Create Rolling Batch <i class="bi bi-arrow-right ms-1"></i>
+    </button>
+  </div>
+</form>
+
+<script>
+(function () {
+  var ttToggle = document.getElementById("ttToggle");
+  var ttToggleLabel = document.getElementById("ttToggleLabel");
+  var ttPanel = document.getElementById("ttPanel");
+  var ttSearch = document.getElementById("ttSearch");
+  var ttOptions = document.getElementById("ttOptions");
+  var ttEmpty = document.getElementById("ttEmpty");
+  var hiddenId = document.getElementById("id_traveller_type_id");
+  var mappingError = document.getElementById("mappingError");
+  var wireDiameterDisplay = document.getElementById("wireDiameterDisplay");
+  var fThicknessDisplay = document.getElementById("fThicknessDisplay");
+  var fWidthDisplay = document.getElementById("fWidthDisplay");
+  var coilList = document.getElementById("coilList");
+  var coilCheckAll = document.getElementById("coilCheckAll");
+  var availableBadge = document.getElementById("availableBadge");
+  var availableTotal = document.getElementById("availableTotal");
+  var coilTotalEl = document.getElementById("coilTotal");
+  var requiredTotalEl = document.getElementById("requiredTotal");
+  var coilTotalStatus = document.getElementById("coilTotalStatus");
+  var weightInput = document.getElementById("id_wire_weight_issued_kg");
+  var coilsJsonInput = document.getElementById("id_coils_json");
+  var currentRawMaterialId = null;
+
+  var EMPTY_ROW = '<tr><td colspan="5" class="text-muted small py-4 text-center">Select a Traveller Type first to load the coils available for its diameter.</td></tr>';
+
+  function clearMappingFields() {
+    wireDiameterDisplay.value = "";
+    fThicknessDisplay.value = "";
+    fWidthDisplay.value = "";
+    currentRawMaterialId = null;
+    coilList.innerHTML = EMPTY_ROW;
+    coilCheckAll.disabled = true;
+    coilCheckAll.checked = false;
+    availableBadge.hidden = true;
+    updateTotals();
+  }
+
+  /* ---- Searchable Traveller Type dropdown ---- */
+  function openPanel() { ttPanel.hidden = false; ttToggle.setAttribute("aria-expanded", "true"); ttSearch.value = ""; filterOptions(""); ttSearch.focus(); }
+  function closePanel() { ttPanel.hidden = true; ttToggle.setAttribute("aria-expanded", "false"); }
+
+  function filterOptions(term) {
+    var needle = term.toLowerCase(), visible = 0;
+    Array.prototype.forEach.call(ttOptions.children, function (li) {
+      var match = li.getAttribute("data-name").toLowerCase().indexOf(needle) !== -1;
+      li.hidden = !match;
+      if (match) visible++;
+    });
+    ttEmpty.hidden = visible > 0;
+  }
+
+  function selectTravellerType(id, name) {
+    hiddenId.value = id;
+    ttToggleLabel.textContent = name;
+    ttToggleLabel.classList.remove("rover-select-placeholder");
+    Array.prototype.forEach.call(ttOptions.children, function (li) {
+      li.classList.toggle("is-selected", li.getAttribute("data-id") === String(id));
+    });
+    closePanel();
+    loadMapping(id);
+  }
+
+  function loadMapping(travellerTypeId) {
+    mappingError.hidden = true; mappingError.textContent = "";
+    fetch("/api/traveller-types/" + travellerTypeId + "/mapping/", { credentials: "same-origin" })
+      .then(function (res) {
+        if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "No mapping found."); });
+        return res.json();
+      })
+      .then(function (data) {
+        wireDiameterDisplay.value = data.wire_diameter_mm;
+        fThicknessDisplay.value = data.f_thickness_mm;
+        fWidthDisplay.value = data.f_width_mm;
+        currentRawMaterialId = data.raw_material_id;
+        loadCoils(currentRawMaterialId);
+      })
+      .catch(function (err) {
+        clearMappingFields();
+        mappingError.hidden = false;
+        mappingError.textContent = err.message || "No raw material mapping found for this traveller type. Contact your supervisor before proceeding.";
+      });
+  }
+
+  ttToggle.addEventListener("click", function () { ttPanel.hidden ? openPanel() : closePanel(); });
+  ttSearch.addEventListener("input", function () { filterOptions(ttSearch.value); });
+  ttSearch.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { closePanel(); ttToggle.focus(); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      var first = Array.prototype.filter.call(ttOptions.children, function (li) { return !li.hidden; })[0];
+      if (first) selectTravellerType(first.getAttribute("data-id"), first.getAttribute("data-name"));
+    }
+  });
+  ttOptions.addEventListener("click", function (e) {
+    var li = e.target.closest(".rover-select-option");
+    if (li) selectTravellerType(li.getAttribute("data-id"), li.getAttribute("data-name"));
+  });
+  document.addEventListener("click", function (e) {
+    if (!ttPanel.hidden && !document.getElementById("travellerTypeSelect").contains(e.target)) closePanel();
+  });
+
+  if (hiddenId.value) {
+    var preselected = ttOptions.querySelector('[data-id="' + hiddenId.value + '"]');
+    if (preselected) selectTravellerType(preselected.getAttribute("data-id"), preselected.getAttribute("data-name"));
+  }
+
+  /* ---- Coils ---- */
+  function loadCoils(rawMaterialId) {
+    coilList.innerHTML = '<tr><td colspan="5" class="text-muted small py-4 text-center">Loading coils...</td></tr>';
+    fetch("/api/coils/?raw_material_id=" + encodeURIComponent(rawMaterialId), { credentials: "same-origin" })
+      .then(function (res) { return res.json(); })
+      .then(function (coils) {
+        if (!coils.length) {
+          coilList.innerHTML = '<tr><td colspan="5" class="text-danger small py-4 text-center">No coils in stock for diameter ' + rawMaterialId + '.</td></tr>';
+          coilCheckAll.disabled = true;
+          availableBadge.hidden = true;
+          return;
+        }
+        var available = 0;
+        coilList.innerHTML = "";
+        coils.forEach(function (coil) {
+          available += parseFloat(coil.weight_kg) || 0;
+          var tr = document.createElement("tr");
+          tr.innerHTML =
+            '<td><input type="checkbox" class="form-check-input coil-check" data-coil-id="' + coil.coil_id + '" data-remaining="' + coil.weight_kg + '"></td>' +
+            '<td class="fw-semibold">Coil ' + coil.coil_display_number + '</td>' +
+            '<td>' + coil.weight_kg + '</td>' +
+            '<td>' + (coil.rack_code ? 'Rack ' + coil.rack_code : '<span class="text-muted">Unracked</span>') + '</td>' +
+            '<td><div class="input-group input-group-sm">' +
+              '<input type="number" step="0.01" min="0.01" max="' + coil.weight_kg + '" class="form-control coil-weight" placeholder="Enter weight" disabled>' +
+              '<span class="input-group-text">kg</span></div></td>';
+          coilList.appendChild(tr);
+        });
+        availableTotal.textContent = available.toFixed(2);
+        availableBadge.hidden = false;
+        coilCheckAll.disabled = false;
+        coilCheckAll.checked = false;
+        bindCoilEvents();
+        updateTotals();
+      });
+  }
+
+  function bindCoilEvents() {
+    document.querySelectorAll(".coil-check").forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        var weightField = cb.closest("tr").querySelector(".coil-weight");
+        weightField.disabled = !cb.checked;
+        if (!cb.checked) weightField.value = ""; else weightField.focus();
+        syncCheckAll();
+        updateTotals();
+      });
+    });
+    document.querySelectorAll(".coil-weight").forEach(function (input) {
+      input.addEventListener("input", updateTotals);
+    });
+  }
+
+  function syncCheckAll() {
+    var all = document.querySelectorAll(".coil-check");
+    var checked = document.querySelectorAll(".coil-check:checked");
+    coilCheckAll.checked = all.length > 0 && checked.length === all.length;
+    coilCheckAll.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+
+  coilCheckAll.addEventListener("change", function () {
+    document.querySelectorAll(".coil-check").forEach(function (cb) {
+      cb.checked = coilCheckAll.checked;
+      var weightField = cb.closest("tr").querySelector(".coil-weight");
+      weightField.disabled = !cb.checked;
+      if (!cb.checked) weightField.value = "";
+    });
+    coilCheckAll.indeterminate = false;
+    updateTotals();
+  });
+
+  function updateTotals() {
+    var total = 0;
+    document.querySelectorAll(".coil-check:checked").forEach(function (cb) {
+      total += parseFloat(cb.closest("tr").querySelector(".coil-weight").value) || 0;
+    });
+    var required = parseFloat(weightInput.value) || 0;
+    coilTotalEl.textContent = total.toFixed(2);
+    requiredTotalEl.textContent = required.toFixed(2);
+    if (required > 0 && Math.abs(total - required) < 0.005) {
+      coilTotalStatus.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill"></i> Matches</span>';
+    } else {
+      coilTotalStatus.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-circle-fill"></i> Does not match yet</span>';
+    }
+  }
+  weightInput.addEventListener("input", updateTotals);
+
+  document.getElementById("rollingForm").addEventListener("submit", function (e) {
+    var coils = [];
+    document.querySelectorAll(".coil-check:checked").forEach(function (cb) {
+      coils.push({ coil_id: cb.getAttribute("data-coil-id"), weight_taken_kg: cb.closest("tr").querySelector(".coil-weight").value });
+    });
+    coilsJsonInput.value = JSON.stringify(coils);
+
+    if (!hiddenId.value) { e.preventDefault(); alert("Please select a Traveller Type."); return; }
+    if (!coils.length) { e.preventDefault(); alert("Please select at least one coil."); return; }
+    var total = coils.reduce(function (s, c) { return s + (parseFloat(c.weight_taken_kg) || 0); }, 0);
+    var required = parseFloat(weightInput.value) || 0;
+    if (Math.abs(total - required) >= 0.005) {
+      e.preventDefault();
+      alert("Selected coil weights (" + total.toFixed(2) + " kg) must equal the wire weight to issue (" + required.toFixed(2) + " kg).");
+    }
+  });
+})();
+</script>
+{% endblock %}

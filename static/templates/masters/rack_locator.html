@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Rack{% endblock %}
+{% block content %}
+
+<div class="toolbar">
+  <label class="search-box" style="max-width:560px">
+    <i class="bi bi-search"></i>
+    <input type="search" id="rackSearch" placeholder="Locate: type a coil no, diameter (0.93), raw material id (RM-093) or rack code..." autocomplete="off">
+  </label>
+  <div class="stat-chips ms-auto">
+    <span class="stat-chip">Racks<strong>{{ total_racks }}</strong></span>
+    <span class="stat-chip">Slots<strong>{{ total_slots }}</strong></span>
+    <span class="stat-chip">Occupied<strong>{{ occupied }}</strong></span>
+    <span class="stat-chip">Empty<strong class="text-success">{{ empty }}</strong></span>
+  </div>
+</div>
+
+<div class="locate-results" id="locateResults" hidden></div>
+
+{% if racks %}
+<div class="rack-grid" id="rackGrid">
+  {% for r in racks %}
+  <div class="rack-card" data-rack="{{ r.rack.rack_code|lower }}">
+    <div class="rack-head">
+      <div><i class="bi bi-grid-3x3-gap"></i><strong>{{ r.rack.rack_code }}</strong></div>
+      <span class="pill {% if r.occupied >= r.rack.capacity %}pill-pending{% else %}pill-neutral{% endif %}">{{ r.occupied }} / {{ r.rack.capacity }}</span>
+    </div>
+    <div class="rack-bar"><span style="width:{{ r.pct }}%"></span></div>
+    <div class="slot-grid">
+      {% for c in r.coils %}
+        <div class="slot slot-filled"
+             data-search="coil {{ c.coil_display_number }} coil{{ c.coil_display_number }} {{ c.raw_material_id|lower }} {{ c.raw_material.diameter_mm }} {{ c.raw_material.diameter_mm }}mm"
+             data-label="Coil {{ c.coil_display_number }} · {{ c.raw_material_id }} · {{ c.raw_material.diameter_mm }} mm · {{ c.weight_kg }} kg"
+             data-rack="{{ r.rack.rack_code }}">
+          <div class="slot-title">Coil {{ c.coil_display_number }}</div>
+          <div class="slot-sub">{{ c.raw_material.diameter_mm }} mm · {{ c.weight_kg }} kg</div>
+          <div class="slot-id">{{ c.raw_material_id }}</div>
+        </div>
+      {% endfor %}
+      {% for _ in r.empty_slots %}<div class="slot slot-empty">Empty</div>{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="section-card text-center text-muted py-5">
+  No racks configured yet. Add racks (with a slot capacity) under Masters → Rack Master.
+</div>
+{% endif %}
+
+{% if unracked %}
+<div class="section-card mt-3">
+  <div class="section-title mb-3">
+    <h6>Unracked Coils</h6>
+    <p>In stock but not assigned to a rack — assign a rack from the Inventory page or Masters.</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2" id="unrackedList">
+    {% for c in unracked %}
+      <span class="pill pill-neutral slot-filled" data-search="coil {{ c.coil_display_number }} coil{{ c.coil_display_number }} {{ c.raw_material_id|lower }} {{ c.raw_material.diameter_mm }} {{ c.raw_material.diameter_mm }}mm" data-label="Coil {{ c.coil_display_number }} · {{ c.raw_material_id }} · {{ c.raw_material.diameter_mm }} mm · {{ c.weight_kg }} kg" data-rack="Unracked">
+        Coil {{ c.coil_display_number }} · {{ c.raw_material_id }} · {{ c.weight_kg }} kg
+      </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+  var input = document.getElementById("rackSearch");
+  var results = document.getElementById("locateResults");
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".rack-card"));
+  var slots = Array.prototype.slice.call(document.querySelectorAll(".slot-filled"));
+
+  function locate() {
+    var needle = input.value.trim().toLowerCase();
+    var hits = [];
+
+    slots.forEach(function (s) { s.classList.remove("is-match", "is-dim"); });
+    cards.forEach(function (c) { c.classList.remove("is-match"); c.hidden = false; });
+
+    if (!needle) { results.hidden = true; results.innerHTML = ""; return; }
+
+    cards.forEach(function (card) {
+      var rackMatch = card.getAttribute("data-rack").indexOf(needle) !== -1;
+      var anySlot = false;
+      card.querySelectorAll(".slot-filled").forEach(function (slot) {
+        var match = slot.getAttribute("data-search").indexOf(needle) !== -1;
+        if (match) {
+          anySlot = true;
+          slot.classList.add("is-match");
+          hits.push({ label: slot.getAttribute("data-label"), rack: slot.getAttribute("data-rack") });
+        } else if (!rackMatch) {
+          slot.classList.add("is-dim");
+        }
+      });
+      card.classList.toggle("is-match", rackMatch || anySlot);
+      card.hidden = !(rackMatch || anySlot);
+    });
+
+    document.querySelectorAll("#unrackedList .slot-filled").forEach(function (slot) {
+      if (slot.getAttribute("data-search").indexOf(needle) !== -1) {
+        slot.classList.add("is-match");
+        hits.push({ label: slot.getAttribute("data-label"), rack: "Unracked" });
+      }
+    });
+
+    results.hidden = false;
+    if (!hits.length) {
+      results.innerHTML = '<div class="text-muted"><i class="bi bi-search me-1"></i> Nothing matches "' + input.value.trim() + '".</div>';
+      return;
+    }
+    results.innerHTML = hits.map(function (h) {
+      return '<div class="hit"><i class="bi bi-geo-alt-fill"></i><span>' + h.label + '</span><span class="to"><i class="bi bi-arrow-right me-1"></i>' + (h.rack === "Unracked" ? "Not on a rack" : "Rack " + h.rack) + '</span></div>';
+    }).join("");
+  }
+
+  input.addEventListener("input", locate);
+  input.focus();
+})();
+</script>
+{% endblock %}

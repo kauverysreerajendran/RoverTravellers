@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -10,6 +11,7 @@ from apps.finishing.models import FinishingTransaction
 from apps.forming.models import FormingTransaction
 from apps.heat_treatment.models import HeatTreatmentTransaction
 from apps.inventory import services as inv_services
+from apps.masters.models import CoilMaster, SurfaceFinish as MasterSurfaceFinish, TravellerNo, TravellerType
 from apps.master_data.models import (
     Department,
     Employee,
@@ -30,7 +32,7 @@ from apps.master_data.models import (
 )
 from apps.production import services as prod_services
 from apps.production.models import ProductionLot, ProductionOrder
-from apps.rolling.models import RollingTransaction
+from apps.rolling import services as rolling_services
 
 
 def dt(days_ago=0, hour=8, minute=0):
@@ -43,6 +45,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write("Seeding Rover Traveller demo data...")
+
+        call_command("seed_masters", verbosity=0)
 
         roles = self._seed_roles()
         admin_user = self._seed_users(roles)
@@ -167,6 +171,14 @@ class Command(BaseCommand):
         for code, name, stage in specs:
             m, _ = Machine.objects.get_or_create(code=code, defaults={"name": name, "stage": stage, "plant": plant})
             machines[stage] = m
+
+        # Required Forming machine codes (spec section 3.1): 1A-1B ... 9A-9B.
+        for n in range(1, 10):
+            for letter in ("A", "B"):
+                code = f"{n}{letter}"
+                Machine.objects.get_or_create(
+                    code=code, defaults={"name": f"Forming Machine {code}", "stage": "forming", "plant": plant}
+                )
         return machines
 
     def _seed_vendors(self):
@@ -279,50 +291,75 @@ class Command(BaseCommand):
         return order
 
     # ------------------------------------------------------------------
+    def _create_demo_rolling_batch(self, admin_user, *, traveller_no_code, coil_numbers, issued_kg,
+                                    finished_kg, rolled_thickness_mm, rolled_width_mm):
+        """Runs a real Rolling batch through apps.rolling.services (same
+        code path the Rolling UI uses) so downstream demo lots carry a
+        genuine, database-backed Wire Serial end to end - never a
+        placeholder value."""
+        traveller_type = TravellerType.objects.get(seq_no=1)  # U1M UDR -> RM-093
+        traveller_no = TravellerNo.objects.get(code=traveller_no_code)
+        finish = MasterSurfaceFinish.objects.get(finish_name="Indigo")
+        coils = list(CoilMaster.objects.filter(raw_material_id="RM-093", coil_display_number__in=coil_numbers))
+        coil_weights = [(coil.pk, coil.weight_kg) for coil in coils]
+
+        batch = rolling_services.initiate_rolling_batch(
+            traveller_type=traveller_type, traveller_no=traveller_no, finish=finish,
+            required_box=1, wire_weight_issued_kg=issued_kg, coil_weights=coil_weights, user=admin_user,
+        )
+        return rolling_services.complete_rolling_batch(
+            batch, rolled_thickness_mm=rolled_thickness_mm, rolled_width_mm=rolled_width_mm,
+            finished_weight_kg=finished_kg, user=admin_user,
+        )
+
     def _seed_full_pipeline_lot(self, order, material, product, locations, machines, shifts, employees, reason_codes, admin_user):
         if ProductionLot.objects.filter(production_order=order, remarks__icontains="DEMO-LOT-COMPLETE").exists():
             return
-        lot = ProductionLot.objects.create(production_order=order, quantity=Decimal("1000.000"), remarks="DEMO-LOT-COMPLETE")
 
         inv_services.receive_raw_material(
             material, Decimal("2000.000"), location=locations["RM-STORE"], user=admin_user, remarks="Initial GRN from vendor"
         )
 
-        rolling = RollingTransaction.objects.create(
-            lot=lot, raw_material=material, machine=machines["rolling"], operator=employees["EMP-ROL"], shift=shifts["A"],
-            start_time=dt(5, 6), end_time=dt(5, 12), input_quantity=Decimal("1000.000"), output_quantity=Decimal("950.000"),
-            rejection_quantity=Decimal("30.000"), rejection_reason=reason_codes["SURF-DEF"], status="in_progress",
-            created_by=admin_user, updated_by=admin_user,
+        # P1 - Rolling: a real RollingBatch (real Wire Serial, real coils)
+        # completing automatically stages its output as Forming-stage WIP
+        # and creates the ProductionLot that carries the Wire Serial forward.
+        rolling_batch = self._create_demo_rolling_batch(
+            admin_user, traveller_no_code="1/0", coil_numbers=[1, 2], issued_kg=Decimal("101.00"),
+            finished_kg=Decimal("98.50"), rolled_thickness_mm=Decimal("0.41"), rolled_width_mm=Decimal("1.78"),
         )
-        prod_services.complete_rolling(rolling, admin_user, material=material, location=locations["RM-STORE"])
+        lot = rolling_batch.production_lots.get()
+        lot.production_order = order
+        lot.remarks = "DEMO-LOT-COMPLETE"
+        lot.save(update_fields=["production_order", "remarks"])
 
         forming = FormingTransaction.objects.create(
             lot=lot, forming_operation="Cold Forming", machine=machines["forming"], operator=employees["EMP-FRM"],
-            shift=shifts["A"], start_time=dt(4, 6), end_time=dt(4, 12), input_quantity=Decimal("950.000"),
-            output_quantity=Decimal("900.000"), rejection_quantity=Decimal("30.000"), rejection_reason=reason_codes["DIM-OUT"],
-            status="in_progress", created_by=admin_user, updated_by=admin_user,
+            shift=shifts["A"], start_time=dt(4, 6), end_time=dt(4, 12), input_quantity=Decimal("98.50"),
+            output_quantity=Decimal("96.80"), traveller_length_mm=Decimal("500.00"), traveller_weight_kg=Decimal("96.50"),
+            rejection_quantity=Decimal("0.000"), status="in_progress", created_by=admin_user, updated_by=admin_user,
         )
         prod_services.complete_stage(forming, admin_user, current_stage="forming")
 
         heat_treat = HeatTreatmentTransaction.objects.create(
-            lot=lot, batch_number="HTB-0001", heat_treatment_type="normalizing", temperature_celsius=Decimal("870.00"),
-            holding_time_minutes=Decimal("45.00"), machine=machines["heat_treatment"], operator=employees["EMP-HT"],
-            shift=shifts["B"], start_time=dt(3, 14), end_time=dt(3, 16), input_quantity=Decimal("900.000"),
-            output_quantity=Decimal("870.000"), rejection_quantity=Decimal("20.000"), status="in_progress",
-            created_by=admin_user, updated_by=admin_user,
+            lot=lot, tt="TT-DEMO-1", t_no="T-DEMO-1", batch_number="HTB-0001", heat_treatment_type="normalizing",
+            temperature_celsius=Decimal("870.00"), holding_time_minutes=Decimal("45.00"), machine=machines["heat_treatment"],
+            operator=employees["EMP-HT"], shift=shifts["B"], start_time=dt(3, 14), end_time=dt(3, 16),
+            input_quantity=Decimal("96.80"), output_quantity=Decimal("95.90"), rejection_quantity=Decimal("0.000"),
+            status="in_progress", created_by=admin_user, updated_by=admin_user,
         )
         prod_services.complete_stage(heat_treat, admin_user, current_stage="heat_treatment")
 
         finishing = FinishingTransaction.objects.create(
-            lot=lot, finishing_operation="Surface Polishing", surface_finish_spec="Ra 1.6", machine=machines["finishing"],
+            lot=lot, finishing_operation="Surface Polishing", tt="TT-DEMO-1", t_no="T-DEMO-1", batch_no="FINB-0001",
+            traveller_weight_kg=Decimal("94.20"), colour="Natural", machine=machines["finishing"],
             operator=employees["EMP-FIN"], shift=shifts["A"], start_time=dt(2, 6), end_time=dt(2, 12),
-            input_quantity=Decimal("870.000"), output_quantity=Decimal("850.000"), rejection_quantity=Decimal("15.000"),
+            input_quantity=Decimal("95.90"), output_quantity=Decimal("94.50"), rejection_quantity=Decimal("0.000"),
             status="in_progress", created_by=admin_user, updated_by=admin_user,
         )
         prod_services.complete_stage(finishing, admin_user, current_stage="finishing")
 
         fg_stock = fg_services.receive_finished_goods(
-            lot=lot, product=product, accepted_quantity=Decimal("800.000"), rejected_quantity=Decimal("50.000"),
+            lot=lot, product=product, accepted_quantity=Decimal("92.00"), rejected_quantity=Decimal("2.50"),
             location=locations["FG-STORE"], rack=self.fg_rack, shelf=self.fg_shelf, tray=None, user=admin_user,
             remarks="Received from finishing line",
         )
@@ -331,22 +368,23 @@ class Command(BaseCommand):
     def _seed_mid_pipeline_lot(self, order, material, locations, machines, shifts, employees, reason_codes, admin_user):
         if ProductionLot.objects.filter(production_order=order, remarks__icontains="DEMO-LOT-MIDWAY").exists():
             return
-        lot = ProductionLot.objects.create(production_order=order, quantity=Decimal("800.000"), remarks="DEMO-LOT-MIDWAY")
 
         inv_services.receive_raw_material(
             material, Decimal("900.000"), location=locations["RM-STORE"], user=admin_user, remarks="GRN for lot 2"
         )
-        rolling = RollingTransaction.objects.create(
-            lot=lot, raw_material=material, machine=machines["rolling"], operator=employees["EMP-ROL"], shift=shifts["B"],
-            start_time=dt(2, 14), end_time=dt(2, 20), input_quantity=Decimal("800.000"), output_quantity=Decimal("760.000"),
-            rejection_quantity=Decimal("25.000"), rejection_reason=reason_codes["SURF-DEF"], status="in_progress",
-            created_by=admin_user, updated_by=admin_user,
+
+        rolling_batch = self._create_demo_rolling_batch(
+            admin_user, traveller_no_code="2/0", coil_numbers=[3], issued_kg=Decimal("61.10"),
+            finished_kg=Decimal("58.00"), rolled_thickness_mm=Decimal("0.41"), rolled_width_mm=Decimal("1.78"),
         )
-        prod_services.complete_rolling(rolling, admin_user, material=material, location=locations["RM-STORE"])
+        lot = rolling_batch.production_lots.get()
+        lot.production_order = order
+        lot.remarks = "DEMO-LOT-MIDWAY"
+        lot.save(update_fields=["production_order", "remarks"])
 
         FormingTransaction.objects.create(
             lot=lot, forming_operation="Cold Forming", machine=machines["forming"], operator=employees["EMP-FRM"],
-            shift=shifts["B"], start_time=dt(1, 14), input_quantity=Decimal("400.000"), output_quantity=Decimal("0.000"),
+            shift=shifts["B"], start_time=dt(1, 14), input_quantity=Decimal("58.00"), output_quantity=Decimal("0.000"),
             rejection_quantity=Decimal("0.000"), status="in_progress", created_by=admin_user, updated_by=admin_user,
         )
 
@@ -357,8 +395,4 @@ class Command(BaseCommand):
         inv_services.receive_raw_material(
             material, Decimal("500.000"), location=locations["RM-STORE"], user=admin_user, remarks="GRN for lot 3"
         )
-        RollingTransaction.objects.create(
-            lot=lot, raw_material=material, machine=machines["rolling"], operator=employees["EMP-ROL"], shift=shifts["C"],
-            start_time=dt(0, 22), input_quantity=Decimal("500.000"), output_quantity=Decimal("0.000"),
-            rejection_quantity=Decimal("0.000"), status="draft", created_by=admin_user, updated_by=admin_user,
-        )
+        # Lot stays at "raw_material" - received but not yet rolled.

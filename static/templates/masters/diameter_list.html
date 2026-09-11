@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+
+<div class="toolbar">
+  <label class="search-box">
+    <i class="bi bi-search"></i>
+    <input type="search" id="diaSearch" placeholder="Search raw material id or diameter..." autocomplete="off">
+  </label>
+  <div class="form-check ms-2">
+    <input class="form-check-input" type="checkbox" id="onlyStock">
+    <label class="form-check-label small" for="onlyStock">Only diameters with stock ({{ with_stock }})</label>
+  </div>
+  <span class="stat-chip ms-auto">Diameters<strong>{{ diameters.count }}</strong></span>
+</div>
+
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-rover" id="diaTable">
+      <thead>
+        <tr>
+          <th>S.No</th><th>Raw Material ID</th><th>Diameter (mm)</th><th>Unit</th>
+          <th>Total Stock (kg)</th><th>Active Coils</th><th>Status</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for d in diameters %}
+        <tr data-search="{{ d.raw_material_id|lower }} {{ d.diameter_mm }}" data-stock="{{ d.active_coils }}">
+          <td class="sno">{{ forloop.counter }}</td>
+          <td class="fw-semibold">{{ d.raw_material_id }}</td>
+          <td>{{ d.diameter_mm }}</td>
+          <td>{{ d.unit }}</td>
+          <td>{{ d.total_stock }}</td>
+          <td>{{ d.active_coils }}</td>
+          <td><span class="pill {% if d.status == 'Active' %}pill-completed{% else %}pill-draft{% endif %}">{{ d.status }}</span></td>
+          <td class="text-end"><a href="{% url 'masters:diameter_detail' d.pk %}" class="btn-eye" title="View coils"><i class="bi bi-eye"></i></a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-footer"><span id="diaCount">{{ diameters.count }} diameters</span></div>
+</div>
+
+<script>
+(function () {
+  var input = document.getElementById("diaSearch");
+  var only = document.getElementById("onlyStock");
+  var rows = Array.prototype.slice.call(document.querySelectorAll("#diaTable tbody tr"));
+  var count = document.getElementById("diaCount");
+  function apply() {
+    var needle = input.value.trim().toLowerCase(), shown = 0;
+    rows.forEach(function (tr) {
+      var ok = (!needle || tr.getAttribute("data-search").indexOf(needle) !== -1)
+            && (!only.checked || parseInt(tr.getAttribute("data-stock"), 10) > 0);
+      tr.hidden = !ok;
+      if (ok) { shown++; tr.querySelector(".sno").textContent = shown; }
+    });
+    count.textContent = shown + " diameter" + (shown === 1 ? "" : "s");
+  }
+  input.addEventListener("input", apply);
+  only.addEventListener("change", apply);
+})();
+</script>
+{% endblock %}

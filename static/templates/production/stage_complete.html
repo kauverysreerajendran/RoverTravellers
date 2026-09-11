@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Auto-populated from previous process</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-6">Transaction #</dt><dd class="col-6">{{ object.transaction_number }}</dd>
+          <dt class="col-6">Wire Serial</dt><dd class="col-6">{{ object.lot.wire_serial|default:"-" }}</dd>
+          <dt class="col-6">Traveller No</dt><dd class="col-6">{{ object.lot.traveller_no|default:"-" }}</dd>
+          <dt class="col-6">Traveller Date</dt><dd class="col-6">{{ object.lot.traveller_date|default:"-" }}</dd>
+          {% if stage == "forming" %}
+          <dt class="col-6">Time Out</dt><dd class="col-6">{{ object.lot.time_out|default:"-" }}</dd>
+          <dt class="col-6">Date Out</dt><dd class="col-6">{{ object.lot.date_out|default:"-" }}</dd>
+          {% endif %}
+          <dt class="col-6">Surface Finish</dt><dd class="col-6">{{ object.lot.surface_finish|default:"-" }}</dd>
+          <dt class="col-6">Machine</dt><dd class="col-6">{{ object.machine }}</dd>
+          <dt class="col-6">Date</dt><dd class="col-6">{{ object.operation_date|default:"-" }}</dd>
+          <dt class="col-6">Weight Received</dt><dd class="col-6"><strong id="weight-received-value">{{ object.input_quantity }}</strong> kg</dd>
+          <dt class="col-6">Status</dt><dd class="col-6"><span class="badge badge-status-{{ object.status }}">{{ object.get_status_display }}</span></dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Complete Transaction</div>
+      <div class="card-body">
+        <form method="post" novalidate id="complete-form">
+          {% csrf_token %}
+          {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="row g-3">
+            {% for field in form %}
+              <div class="col-md-6">
+                <label class="form-label">{{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+              </div>
+            {% endfor %}
+            {% if stage == "forming" %}
+            <div class="col-md-6">
+              <label class="form-label">Wastage (kg)</label>
+              <input type="text" class="form-control" id="wastage-preview" readonly value="-">
+              <div class="form-text">Weight Received - Finished Weight (calculated automatically)</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Wastage %</label>
+              <input type="text" class="form-control" id="wastage-percent-preview" readonly value="-">
+            </div>
+            {% endif %}
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-success"><i class="bi bi-check2-circle"></i> Complete</button>
+            <a href="{% url detail_url_name object.pk %}" class="btn btn-link">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% if stage == "forming" %}
+<script>
+(function () {
+  var weightReceived = parseFloat("{{ object.input_quantity|default:'0' }}") || 0;
+  var outputField = document.getElementById("id_output_quantity");
+  var wastageField = document.getElementById("wastage-preview");
+  var wastagePercentField = document.getElementById("wastage-percent-preview");
+
+  function recalc() {
+    if (!outputField) return;
+    var finished = parseFloat(outputField.value);
+    if (isNaN(finished)) {
+      wastageField.value = "-";
+      wastagePercentField.value = "-";
+      return;
+    }
+    var wastage = weightReceived - finished;
+    wastageField.value = wastage.toFixed(2);
+    wastagePercentField.value = weightReceived > 0 ? ((wastage / weightReceived) * 100).toFixed(2) + "%" : "-";
+  }
+
+  if (outputField) {
+    outputField.addEventListener("input", recalc);
+    recalc();
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

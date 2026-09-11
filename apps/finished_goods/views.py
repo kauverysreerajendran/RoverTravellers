@@ -6,7 +6,9 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import DetailView, ListView
 
-from apps.inventory.models import FinishedGoodsStock
+from apps.finishing.models import FinishingTransaction
+from apps.inventory.models import FinishedGoodsStock, WIPStock
+from apps.production.models import ProductionLot
 
 from . import services
 from .forms import FinishedGoodsReceiveForm
@@ -19,7 +21,9 @@ class FinishedGoodsListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        qs = FinishedGoodsStock.objects.select_related("product", "lot", "location").order_by("-created_at")
+        qs = FinishedGoodsStock.objects.select_related(
+            "product", "lot", "lot__source_rolling_batch", "location"
+        ).order_by("-created_at")
         status = self.request.GET.get("status")
         if status:
             qs = qs.filter(status=status)
@@ -29,6 +33,13 @@ class FinishedGoodsListView(LoginRequiredMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         ctx["page_title"] = "Finished Goods"
         ctx["status_choices"] = FinishedGoodsStock._meta.get_field("status").choices
+        received_lot_ids = FinishedGoodsStock.objects.values_list("lot_id", flat=True)
+        ctx["pending_lots"] = (
+            ProductionLot.objects.filter(current_stage="finished_goods")
+            .exclude(pk__in=list(received_lot_ids))
+            .select_related("source_rolling_batch")
+            .order_by("-created_at")
+        )
         return ctx
 
 
@@ -36,7 +47,34 @@ class FinishedGoodsReceiveView(LoginRequiredMixin, View):
     template_name = "finished_goods/finished_goods_form.html"
 
     def get(self, request):
-        return render(request, self.template_name, {"form": FinishedGoodsReceiveForm(), "page_title": "Receive Finished Goods"})
+        lot_id = request.GET.get("lot")
+        initial = {}
+        auto = None
+        if lot_id:
+            lot = get_object_or_404(ProductionLot, pk=lot_id, current_stage="finished_goods")
+            available = (
+                WIPStock.objects.filter(stage="finished_goods", lot=lot, status="available")
+                .values_list("quantity", flat=True)
+                .first()
+            )
+            initial["lot"] = lot.pk
+            if available is not None:
+                initial["accepted_quantity"] = available
+            finishing = FinishingTransaction.objects.filter(lot=lot, status="completed").order_by("-created_at").first()
+            auto = {
+                "lot": lot,
+                "wire_serial": lot.wire_serial,
+                "traveller_no": lot.traveller_no,
+                "traveller_date": lot.traveller_date,
+                "surface_finish": finishing.surface_finish if finishing else lot.surface_finish,
+                "colour": finishing.colour if finishing else "",
+                "weight_received": available,
+            }
+        form = FinishedGoodsReceiveForm(initial=initial)
+        return render(
+            request, self.template_name,
+            {"form": form, "page_title": "Receive Finished Goods", "auto": auto},
+        )
 
     def post(self, request):
         form = FinishedGoodsReceiveForm(request.POST)
@@ -59,7 +97,14 @@ class FinishedGoodsReceiveView(LoginRequiredMixin, View):
             except (ValidationError, PermissionDenied) as exc:
                 detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
                 messages.error(request, detail)
-        return render(request, self.template_name, {"form": form, "page_title": "Receive Finished Goods"})
+        auto = None
+        lot = form.cleaned_data.get("lot") if form.is_bound and hasattr(form, "cleaned_data") else None
+        if lot:
+            auto = {
+                "lot": lot, "wire_serial": lot.wire_serial, "traveller_no": lot.traveller_no,
+                "traveller_date": lot.traveller_date, "surface_finish": lot.surface_finish,
+            }
+        return render(request, self.template_name, {"form": form, "page_title": "Receive Finished Goods", "auto": auto})
 
 
 class FinishedGoodsDetailView(LoginRequiredMixin, DetailView):

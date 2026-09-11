@@ -24,9 +24,19 @@ def global_search(request):
     from apps.master_data.models import MaterialMaster, ProductMaster
     from apps.production.models import ProductionLot, ProductionOrder
 
+    from apps.masters.models import TravellerType
+    from apps.rolling.models import RollingBatch
+
     q = request.GET.get("q", "").strip()
     if not q:
         return redirect("dashboard:overview")
+
+    batch = RollingBatch.objects.filter(wire_serial__iexact=q).first()
+    if batch:
+        return redirect("rolling:detail", pk=batch.pk)
+
+    if RollingBatch.objects.filter(wire_serial__icontains=q).exists() or TravellerType.objects.filter(name__icontains=q).exists():
+        return redirect(f"{reverse('rolling:list')}?q={q}")
 
     lot = ProductionLot.objects.filter(lot_number__icontains=q).first()
     if lot:
@@ -46,5 +56,5 @@ def global_search(request):
     if ProductMaster.objects.filter(product_code__icontains=q).exists():
         return redirect(f"{reverse('master_data:product_list')}?q={q}")
 
-    messages.info(request, f'No lot, order, finished goods, material, or product found matching "{q}".')
+    messages.info(request, f'Nothing found matching "{q}" (wire serial, traveller type, lot, order, material or product).')
     return redirect("dashboard:overview")

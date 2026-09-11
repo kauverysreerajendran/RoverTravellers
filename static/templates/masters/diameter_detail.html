@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="section-card">
+      <div class="stat-tiles mb-3">
+        <div class="stat-tile"><div class="stat-tile-label">Raw Material ID</div><div class="stat-tile-value">{{ diameter.raw_material_id }}</div></div>
+        <div class="stat-tile"><div class="stat-tile-label">Diameter</div><div class="stat-tile-value">{{ diameter.diameter_mm }}<small>mm</small></div></div>
+        <div class="stat-tile is-accent"><div class="stat-tile-label">Total Stock</div><div class="stat-tile-value">{{ diameter.total_stock }}<small>{{ diameter.unit }}</small></div></div>
+        <div class="stat-tile"><div class="stat-tile-label">Active Coils</div><div class="stat-tile-value">{{ diameter.active_coils }}</div></div>
+      </div>
+
+      <div class="section-title mb-3">
+        <h6>Coils</h6>
+        <p>Total stock is always the sum of In Stock coil weights</p>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-rover">
+          <thead><tr><th>S.No</th><th>Coil</th><th>Weight (kg)</th><th>Status</th><th>Rack</th><th>Supplier</th><th>Received</th></tr></thead>
+          <tbody>
+          {% for c in coils %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td class="fw-semibold">Coil {{ c.coil_display_number }}</td>
+              <td>{{ c.weight_kg }}</td>
+              <td><span class="pill {% if c.status == 'In Stock' %}pill-completed{% else %}pill-draft{% endif %}">{{ c.status }}</span></td>
+              <td>{{ c.rack.rack_code|default:"-" }}</td>
+              <td>{{ c.supplier|default:"-" }}</td>
+              <td>{{ c.received_date|date:"d M Y"|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="text-center text-muted py-4">No coils received for this diameter yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="section-card">
+      <div class="section-title mb-3">
+        <h6>Add New Coil</h6>
+        <p>Coil number is assigned automatically ({% if diameter.active_coils %}continues the sequence{% else %}restarts from Coil 1{% endif %})</p>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Weight (kg) <span class="req">*</span></label>
+          <div class="input-group"><span class="input-group-text"><i class="bi bi-lock"></i></span>{{ form.weight_kg }}<span class="input-group-text">kg</span></div>
+          {% if form.weight_kg.errors %}<div class="text-danger small mt-1">{{ form.weight_kg.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Rack</label>
+          <div class="input-group"><span class="input-group-text"><i class="bi bi-grid-3x3-gap"></i></span>{{ form.rack }}</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Supplier</label>
+          <div class="input-group"><span class="input-group-text"><i class="bi bi-truck"></i></span>{{ form.supplier }}</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Received Date</label>
+          <div class="input-group"><span class="input-group-text"><i class="bi bi-calendar3"></i></span>{{ form.received_date }}</div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1"></i> Add Coil</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

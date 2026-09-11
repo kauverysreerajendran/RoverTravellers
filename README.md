@@ -36,19 +36,22 @@ rover-traveller/
 │   ├── inventory/     Raw material / WIP / FG stock, transfers, adjustments
 │   ├── reports/       Production, process, traceability, rejection reports
 │   └── audit/         Audit log + request-scoped middleware
-├── templates/         Server-rendered HTML (Bootstrap 5)
-├── static/            CSS/JS
+├── static/
+│   ├── templates/     Server-rendered HTML (Bootstrap 5)
+│   ├── css/, js/, images/
 ├── fixtures/, media/, scripts/
 ```
 
 ## Local Setup (without Docker)
 
 ```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
+python -m venv env
+# Windows (cmd.exe)
+env\Scripts\activate
+# Windows (PowerShell)
+.\env\Scripts\Activate.ps1
 # Linux/macOS
-source .venv/bin/activate
+source env/bin/activate
 
 pip install -r requirements.txt
 cp .env.example .env   # edit DB_* values if needed
@@ -62,7 +65,11 @@ CREATE DATABASE rover_traveller;
 
 Then:
 
+Migration files are generated locally rather than committed to git, so run
+`makemigrations` once after cloning:
+
 ```bash
+python manage.py makemigrations
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py collectstatic --noinput

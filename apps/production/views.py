@@ -113,12 +113,12 @@ class ProductionLotDetailView(LoginRequiredMixin, DetailView):
         from apps.inventory.models import FinishedGoodsStock
         from apps.forming.models import FormingTransaction
         from apps.heat_treatment.models import HeatTreatmentTransaction
-        from apps.rolling.models import RollingTransaction
 
         ctx = super().get_context_data(**kwargs)
         lot = self.object
         ctx["page_title"] = f"Lot {lot.lot_number} Traceability"
-        ctx["rolling_ops"] = RollingTransaction.objects.filter(lot=lot)
+        # Rolling now runs on its own wire-serial/coil traceability (see the
+        # Rolling module) rather than the ProductionLot pipeline.
         ctx["forming_ops"] = FormingTransaction.objects.filter(lot=lot)
         ctx["heat_treatment_ops"] = HeatTreatmentTransaction.objects.filter(lot=lot)
         ctx["finishing_ops"] = FinishingTransaction.objects.filter(lot=lot)

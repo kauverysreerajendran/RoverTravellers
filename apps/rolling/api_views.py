@@ -1,36 +1,52 @@
-from django.core.exceptions import ValidationError as DjangoValidationError, PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.production.services import complete_rolling
+from apps.masters.models import SurfaceFinish, TravellerNo, TravellerType
 
-from .models import RollingTransaction
-from .serializers import RollingTransactionSerializer
+from . import services
+from .models import RollingBatch
+from .serializers import RollingBatchSerializer, RollingCompleteSerializer, RollingInitiateSerializer
 
 
-class RollingTransactionViewSet(viewsets.ModelViewSet):
-    queryset = RollingTransaction.objects.select_related("lot", "raw_material", "machine", "operator", "shift").all()
-    serializer_class = RollingTransactionSerializer
-    filterset_fields = ["status", "machine", "lot"]
-    search_fields = ["transaction_number", "lot__lot_number"]
-    ordering_fields = ["created_at", "start_time"]
+class RollingBatchViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = RollingBatch.objects.select_related("traveller_type", "traveller_no", "finish").prefetch_related(
+        "coils_used__coil"
+    )
+    serializer_class = RollingBatchSerializer
+    filterset_fields = ["status", "traveller_type", "finish"]
+    search_fields = ["wire_serial"]
+    ordering_fields = ["created_at"]
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user, updated_by=self.request.user)
-
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        if instance.status == "completed":
-            raise DjangoValidationError("Completed transactions cannot be edited.")
-        serializer.save(updated_by=self.request.user)
-
-    @action(detail=True, methods=["post"])
-    def complete(self, request, pk=None):
-        operation = self.get_object()
+    @action(detail=False, methods=["post"])
+    def initiate(self, request):
+        serializer = RollingInitiateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
         try:
-            complete_rolling(operation, request.user, material=operation.raw_material)
+            batch = services.initiate_rolling_batch(
+                traveller_type=TravellerType.objects.get(pk=data["traveller_type_id"]),
+                traveller_no=TravellerNo.objects.get(pk=data["traveller_no_id"]),
+                finish=SurfaceFinish.objects.get(pk=data["finish_id"]),
+                required_box=data["required_box"],
+                wire_weight_issued_kg=data["wire_weight_issued_kg"],
+                coil_weights=[(c["coil_id"], c["weight_taken_kg"]) for c in data["coils"]],
+                user=request.user,
+            )
         except (DjangoValidationError, PermissionDenied) as exc:
             detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
             return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(self.get_serializer(operation).data)
+        return Response(RollingBatchSerializer(batch).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["put"])
+    def complete(self, request, pk=None):
+        batch = self.get_object()
+        serializer = RollingCompleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            services.complete_rolling_batch(batch, user=request.user, **serializer.validated_data)
+        except (DjangoValidationError, PermissionDenied) as exc:
+            detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(RollingBatchSerializer(batch).data)

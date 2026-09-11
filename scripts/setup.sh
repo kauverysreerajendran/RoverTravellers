@@ -2,8 +2,8 @@
 # Rover Traveller local setup (Linux/macOS)
 set -e
 
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv env
+source env/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
@@ -12,8 +12,8 @@ if [ ! -f .env ]; then
   echo "Created .env from .env.example. Edit DB credentials if needed."
 fi
 
+python manage.py makemigrations
 python manage.py migrate
-python manage.py seed_demo_data
 python manage.py collectstatic --noinput
 
 echo "Setup complete. Run: python manage.py runserver"
