@@ -77,6 +77,23 @@ class WorkflowTestBase(TestCase):
         self.lot.current_stage = "forming"
         self.lot.save(update_fields=["current_stage"])
 
+    def make_lot(self, wire_serial, quantity):
+        """A second (third, fourth...) lot, carried by its own completed
+        Rolling batch and with its Forming WIP already staged."""
+        batch = RollingBatch.objects.create(
+            wire_serial=wire_serial, traveller_type=self.rolling_batch.traveller_type,
+            traveller_no=self.rolling_batch.traveller_no, finish=self.rolling_batch.finish,
+            wire_diameter_mm=Decimal("0.93"), f_thickness_mm=Decimal("0.41"), f_width_mm=Decimal("1.78"),
+            required_box=1, wire_weight_issued_kg=quantity, status="Completed",
+            finished_weight_kg=quantity, completed_at=timezone.now(),
+        )
+        lot = ProductionLot.objects.create(
+            production_order=self.order, quantity=quantity, source_rolling_batch=batch,
+            current_stage="forming",
+        )
+        inv_services.add_wip("forming", lot, quantity, user=self.admin, location=self.wip_location)
+        return lot
+
     def make_forming(self, input_qty="500", output_qty="480", rejection_qty="15", status="in_progress"):
         return FormingTransaction.objects.create(
             lot=self.lot, machine=self.machine_forming, operator=self.employee, shift=self.shift,

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load rover_extras %}
 {% block title %}{{ page_title }}{% endblock %}
 {% block content %}
 
@@ -53,11 +54,11 @@
       </div>
       <div class="table-responsive">
         <table class="table table-rover">
-          <thead><tr><th>S.No</th><th>Coil</th><th>Diameter</th><th>Rack</th><th class="text-end">Weight Taken (kg)</th></tr></thead>
+          <thead><tr><th class="col-sno">S.No</th><th>Coil</th><th>Diameter</th><th>Rack</th><th class="text-end">Weight Taken (kg)</th></tr></thead>
           <tbody>
           {% for cu in coils_used %}
             <tr>
-              <td>{{ forloop.counter }}</td>
+              <td class="col-sno">{% sno page_obj forloop.counter0 %}</td>
               <td class="fw-semibold">Coil {{ cu.coil.coil_display_number }}</td>
               <td>{{ cu.coil.raw_material_id }} · {{ cu.coil.raw_material.diameter_mm }} mm</td>
               <td>{{ cu.coil.rack.rack_code|default:"-" }}</td>
@@ -66,7 +67,7 @@
           {% endfor %}
           </tbody>
           <tfoot>
-            <tr><td colspan="4" class="text-end fw-semibold">Total</td><td class="text-end fw-bold">{{ batch.wire_weight_issued_kg }}</td></tr>
+            <tr><td colspan="5" class="text-end fw-semibold">Total</td><td class="text-end fw-bold">{{ batch.wire_weight_issued_kg }}</td></tr>
           </tfoot>
         </table>
       </div>

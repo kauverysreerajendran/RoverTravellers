@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load rover_extras %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
@@ -54,13 +55,13 @@
       <div class="card-header bg-white fw-semibold">Recent Production Transactions</div>
       <div class="table-responsive">
         <table class="table table-compact mb-0">
-          <thead><tr><th>Stage</th><th>Transaction</th><th>Wire Serial</th><th>Status</th></tr></thead>
+          <thead><tr><th class="col-sno">S.No</th><th>Stage</th><th>Transaction</th><th>Wire Serial</th><th>Status</th></tr></thead>
           <tbody>
           {% for t in recent_transactions %}
-            <tr><td class="text-capitalize">{{ t.stage|cut:"_"|default:t.stage }}</td><td>{{ t.transaction_number }}</td><td>{{ t.wire_serial|default:"-" }}</td>
+            <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td class="text-capitalize">{{ t.stage|cut:"_"|default:t.stage }}</td><td>{{ t.transaction_number }}</td><td>{{ t.wire_serial|default:"-" }}</td>
               <td><span class="badge badge-status-{{ t.status }}">{{ t.status }}</span></td></tr>
           {% empty %}
-            <tr><td colspan="4" class="text-center text-muted py-3">No transactions yet.</td></tr>
+            <tr><td colspan="5" class="text-center text-muted py-3">No transactions yet.</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -73,12 +74,12 @@
       <div class="card-header bg-white fw-semibold">Pending Quality Approvals</div>
       <div class="table-responsive">
         <table class="table table-compact mb-0">
-          <thead><tr><th>FG Batch</th><th>Wire Serial</th><th>Product</th><th>Accepted</th><th>Rejected</th></tr></thead>
+          <thead><tr><th class="col-sno">S.No</th><th>FG Batch</th><th>Wire Serial</th><th>Product</th><th>Accepted</th><th>Rejected</th></tr></thead>
           <tbody>
           {% for fg in pending_qc_approvals %}
-            <tr><td>{{ fg.fg_lot_number }}</td><td>{{ fg.lot.wire_serial|default:"-" }}</td><td>{{ fg.product }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td></tr>
+            <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ fg.fg_lot_number }}</td><td>{{ fg.lot.wire_serial|default:"-" }}</td><td>{{ fg.product }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td></tr>
           {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-3">Nothing pending approval.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-3">Nothing pending approval.</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -91,12 +92,12 @@
       <div class="card-header bg-white fw-semibold">Low Stock Alerts</div>
       <div class="table-responsive">
         <table class="table table-compact mb-0">
-          <thead><tr><th>Material</th><th>Location</th><th>Qty</th><th>Reorder Level</th></tr></thead>
+          <thead><tr><th class="col-sno">S.No</th><th>Material</th><th>Location</th><th>Qty</th><th>Reorder Level</th></tr></thead>
           <tbody>
           {% for s in low_stock_alerts %}
-            <tr><td>{{ s.material.material_code }}</td><td>{{ s.location.name }}</td><td>{{ s.quantity }}</td><td>{{ s.material.reorder_level }}</td></tr>
+            <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ s.material.material_code }}</td><td>{{ s.location.name }}</td><td>{{ s.quantity }}</td><td>{{ s.material.reorder_level }}</td></tr>
           {% empty %}
-            <tr><td colspan="4" class="text-center text-muted py-3">All raw material stock levels are healthy.</td></tr>
+            <tr><td colspan="5" class="text-center text-muted py-3">All raw material stock levels are healthy.</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -109,12 +110,12 @@
       <div class="card-header bg-white fw-semibold">Recent Audit Activity</div>
       <div class="table-responsive">
         <table class="table table-compact mb-0">
-          <thead><tr><th>User</th><th>Action</th><th>Entity</th><th>When</th></tr></thead>
+          <thead><tr><th class="col-sno">S.No</th><th>User</th><th>Action</th><th>Entity</th><th>When</th></tr></thead>
           <tbody>
           {% for log in recent_audit_logs %}
-            <tr><td>{{ log.user|default:"System" }}</td><td class="text-capitalize">{{ log.action }}</td><td>{{ log.entity_type }}</td><td>{{ log.created_at|date:"d M, H:i" }}</td></tr>
+            <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ log.user|default:"System" }}</td><td class="text-capitalize">{{ log.action }}</td><td>{{ log.entity_type }}</td><td>{{ log.created_at|date:"d M, H:i" }}</td></tr>
           {% empty %}
-            <tr><td colspan="4" class="text-center text-muted py-3">No audit activity yet.</td></tr>
+            <tr><td colspan="5" class="text-center text-muted py-3">No audit activity yet.</td></tr>
           {% endfor %}
           </tbody>
         </table>

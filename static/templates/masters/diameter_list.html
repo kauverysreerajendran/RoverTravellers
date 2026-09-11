@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load rover_extras %}
 {% block title %}Inventory{% endblock %}
 {% block content %}
 
@@ -19,14 +20,14 @@
     <table class="table table-rover" id="diaTable">
       <thead>
         <tr>
-          <th>S.No</th><th>Raw Material ID</th><th>Diameter (mm)</th><th>Unit</th>
+          <th class="col-sno">S.No</th><th>Raw Material ID</th><th>Diameter (mm)</th><th>Unit</th>
           <th>Total Stock (kg)</th><th>Active Coils</th><th>Status</th><th class="text-end">Actions</th>
         </tr>
       </thead>
       <tbody>
       {% for d in diameters %}
         <tr data-search="{{ d.raw_material_id|lower }} {{ d.diameter_mm }}" data-stock="{{ d.active_coils }}">
-          <td class="sno">{{ forloop.counter }}</td>
+          <td class="col-sno">{% sno page_obj forloop.counter0 %}</td>
           <td class="fw-semibold">{{ d.raw_material_id }}</td>
           <td>{{ d.diameter_mm }}</td>
           <td>{{ d.unit }}</td>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load rover_extras %}
 {% block title %}Production Lots{% endblock %}
 {% block content %}
 <div class="card">
@@ -15,17 +16,17 @@
   </div>
   <div class="table-responsive">
     <table class="table table-compact table-hover mb-0">
-      <thead class="table-light"><tr><th>Lot #</th><th>Order</th><th>Stage</th><th>Qty</th><th>Hold</th><th></th></tr></thead>
+      <thead class="table-light"><tr><th class="col-sno">S.No</th><th>Lot #</th><th>Order</th><th>Stage</th><th>Qty</th><th>Hold</th><th></th></tr></thead>
       <tbody>
       {% for lot in lots %}
-        <tr>
+        <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td>
           <td>{{ lot.lot_number }}</td><td>{{ lot.production_order.order_number }}</td>
           <td class="text-capitalize">{{ lot.get_current_stage_display }}</td><td>{{ lot.quantity }}</td>
           <td>{% if lot.is_on_hold %}<span class="badge bg-warning-subtle text-warning">Hold</span>{% else %}-{% endif %}</td>
           <td><a href="{% url 'production:lot_detail' lot.pk %}" class="btn btn-sm btn-outline-secondary">Trace</a></td>
         </tr>
       {% empty %}
-        <tr><td colspan="6" class="text-center text-muted py-4">No lots yet.</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-4">No lots yet.</td></tr>
       {% endfor %}
       </tbody>
     </table>

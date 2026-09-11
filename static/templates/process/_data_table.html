@@ -1,3 +1,4 @@
+{% load rover_extras %}
 {% comment %}
 Shared, config-driven table used by BOTH the Main Table and the Complete
 Table of every process. Columns and cell values arrive pre-resolved from
@@ -45,6 +46,7 @@ names and never has to change when a process is added.
     <table class="table table-compact table-hover mb-0 process-table">
       <thead class="table-light">
         <tr>
+          <th class="col-sno">S.No</th>
           {% for column in columns %}
             <th class="{% if column.kind == 'number' %}text-end{% endif %}{% if column.order_by %} th-sortable{% endif %}">
               {% if column.order_by %}
@@ -69,6 +71,7 @@ names and never has to change when a process is added.
       <tbody>
         {% for row in incoming_rows %}
           <tr class="row-pending">
+            <td class="col-sno">{{ forloop.counter }}</td>
             {% for cell in row.cells %}{% include "process/_cell.html" %}{% endfor %}
             {% if has_actions %}
               <td class="text-end col-actions">
@@ -82,6 +85,7 @@ names and never has to change when a process is added.
 
         {% for row in rows %}
           <tr>
+            <td class="col-sno">{% sno page_obj forloop.counter0 incoming_count %}</td>
             {% for cell in row.cells %}{% include "process/_cell.html" %}{% endfor %}
             {% if has_actions %}
               <td class="text-end col-actions">
@@ -95,7 +99,7 @@ names and never has to change when a process is added.
 
         {% if not rows and not incoming_rows %}
           <tr>
-            <td colspan="{{ columns|length|add:1 }}">
+            <td colspan="{{ columns|length|add:2 }}">
               <div class="process-state process-state-empty">
                 <i class="bi bi-inbox"></i>
                 <div>

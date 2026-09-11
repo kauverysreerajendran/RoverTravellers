@@ -87,7 +87,7 @@ class ProcessRegistryTests(TestCase):
                 if "migrations" in dirpath or "__pycache__" in dirpath:
                     continue
                 for filename in filenames:
-                    if not filename.endswith((".py", ".html")) or filename.startswith("test_"):
+                    if not filename.endswith((".py", ".html")) or filename.startswith("test"):
                         continue
                     path = os.path.join(dirpath, filename)
                     with open(path, encoding="utf-8") as handle:
@@ -114,8 +114,8 @@ class ProcessRegistryTests(TestCase):
                 with open(path, encoding="utf-8") as handle:
                     body = handle.read()
                 rel = os.path.relpath(path, settings.BASE_DIR)
-                if os.path.basename(path).startswith("test_"):
-                    continue
+                if os.path.basename(path).startswith("test"):
+                    continue  # test fixtures may name a stage deliberately
                 for symbol in banned:
                     if symbol in body:
                         offenders.append(f"{rel}: {symbol}")

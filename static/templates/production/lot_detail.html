@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load rover_extras %}
 {% block title %}{{ page_title }}{% endblock %}
 {% block content %}
 <div class="card mb-3">
@@ -25,12 +26,12 @@
 <div class="card mb-3">
   <div class="card-header bg-white fw-semibold">Forming</div>
   <div class="table-responsive"><table class="table table-compact mb-0">
-    <thead><tr><th>Txn #</th><th>Input</th><th>Output</th><th>Rejection</th><th>Status</th></tr></thead>
+    <thead><tr><th class="col-sno">S.No</th><th>Txn #</th><th>Input</th><th>Output</th><th>Rejection</th><th>Status</th></tr></thead>
     <tbody>
       {% for op in forming_ops %}
-        <tr><td>{{ op.transaction_number }}</td><td>{{ op.input_quantity }}</td><td>{{ op.output_quantity }}</td><td>{{ op.rejection_quantity }}</td>
+        <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ op.transaction_number }}</td><td>{{ op.input_quantity }}</td><td>{{ op.output_quantity }}</td><td>{{ op.rejection_quantity }}</td>
           <td><span class="badge badge-status-{{ op.status }}">{{ op.status }}</span></td></tr>
-      {% empty %}<tr><td colspan="5" class="text-center text-muted py-2">No forming activity.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-2">No forming activity.</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>
@@ -38,12 +39,12 @@
 <div class="card mb-3">
   <div class="card-header bg-white fw-semibold">Heat Treatment</div>
   <div class="table-responsive"><table class="table table-compact mb-0">
-    <thead><tr><th>Txn #</th><th>Batch</th><th>Input</th><th>Output</th><th>Rejection</th><th>Status</th></tr></thead>
+    <thead><tr><th class="col-sno">S.No</th><th>Txn #</th><th>Batch</th><th>Input</th><th>Output</th><th>Rejection</th><th>Status</th></tr></thead>
     <tbody>
       {% for op in heat_treatment_ops %}
-        <tr><td>{{ op.transaction_number }}</td><td>{{ op.batch_number }}</td><td>{{ op.input_quantity }}</td><td>{{ op.output_quantity }}</td><td>{{ op.rejection_quantity }}</td>
+        <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ op.transaction_number }}</td><td>{{ op.batch_number }}</td><td>{{ op.input_quantity }}</td><td>{{ op.output_quantity }}</td><td>{{ op.rejection_quantity }}</td>
           <td><span class="badge badge-status-{{ op.status }}">{{ op.status }}</span></td></tr>
-      {% empty %}<tr><td colspan="6" class="text-center text-muted py-2">No heat treatment activity.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-2">No heat treatment activity.</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>
@@ -51,12 +52,12 @@
 <div class="card mb-3">
   <div class="card-header bg-white fw-semibold">Finishing</div>
   <div class="table-responsive"><table class="table table-compact mb-0">
-    <thead><tr><th>Txn #</th><th>Input</th><th>Output</th><th>Rejection</th><th>Status</th></tr></thead>
+    <thead><tr><th class="col-sno">S.No</th><th>Txn #</th><th>Input</th><th>Output</th><th>Rejection</th><th>Status</th></tr></thead>
     <tbody>
       {% for op in finishing_ops %}
-        <tr><td>{{ op.transaction_number }}</td><td>{{ op.input_quantity }}</td><td>{{ op.output_quantity }}</td><td>{{ op.rejection_quantity }}</td>
+        <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ op.transaction_number }}</td><td>{{ op.input_quantity }}</td><td>{{ op.output_quantity }}</td><td>{{ op.rejection_quantity }}</td>
           <td><span class="badge badge-status-{{ op.status }}">{{ op.status }}</span></td></tr>
-      {% empty %}<tr><td colspan="5" class="text-center text-muted py-2">No finishing activity.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-2">No finishing activity.</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>
@@ -64,12 +65,12 @@
 <div class="card">
   <div class="card-header bg-white fw-semibold">Finished Goods</div>
   <div class="table-responsive"><table class="table table-compact mb-0">
-    <thead><tr><th>FG Batch #</th><th>Accepted</th><th>Rejected</th><th>Status</th><th>Quality Approved</th></tr></thead>
+    <thead><tr><th class="col-sno">S.No</th><th>FG Batch #</th><th>Accepted</th><th>Rejected</th><th>Status</th><th>Quality Approved</th></tr></thead>
     <tbody>
       {% for fg in finished_goods %}
-        <tr><td>{{ fg.fg_lot_number }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td>
+        <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ fg.fg_lot_number }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td>
           <td><span class="badge badge-status-{{ fg.status }}">{{ fg.status }}</span></td><td>{{ fg.quality_approved|yesno:"Yes,No" }}</td></tr>
-      {% empty %}<tr><td colspan="5" class="text-center text-muted py-2">No finished goods yet.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-2">No finished goods yet.</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>

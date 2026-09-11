@@ -680,6 +680,10 @@ a { color: var(--rover-red); }
 .process-table td.num { font-variant-numeric: tabular-nums; }
 .process-table .col-actions { white-space: nowrap; }
 .process-table .col-actions .btn + .btn { margin-left: .3rem; }
+/* S.No: a fixed, narrow first column on every data table. Presentation
+   only - never a model field, never sortable, never searched. */
+.col-sno { width: 56px; min-width: 56px; text-align: right; white-space: nowrap; }
+
 .process-table tr.row-pending td { background: #fffaf0; }
 .process-table tr.row-pending:hover td { background: #fff5e3; }
 
