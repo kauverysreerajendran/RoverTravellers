@@ -113,6 +113,9 @@ python manage.py seed_process_history --reset --from 2026-04-01 --provisional-ma
 python manage.py seed_process_history --extend
 ```
 
+All seed commands run against the database in `.env`; never seed a scratch
+database for verification.
+
 `seed_masters` loads the official Traveller Type, Traveller No, Surface Finish,
 Diameter and Wire Serial masters, plus the rack and machine masters the process
 screens read. It creates no process records.
