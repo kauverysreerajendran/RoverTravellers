@@ -100,6 +100,9 @@ class ProcessConfig:
     # through the handover contract, but the terminal process serves it as
     # a property rather than a column, so the ORM path is declared here.
     handover_ordering = "-completed_at"
+    # Prefix of the batch number this process stamps on its records, when
+    # it records one at all (HT-2604-001, FN-2604-001).
+    batch_prefix = ""
     # The status a record carries once it has finished here. Rolling and
     # the OperationBase stages spell it differently, so the vocabulary
     # lives with the process rather than in the completion service.
@@ -408,6 +411,7 @@ class HeatTreatmentProcess(StageProcess):
     label = "Heat Treatment"
     icon = "bi-fire"
     model_path = "heat_treatment.HeatTreatmentTransaction"
+    batch_prefix = "HT"
     create_url_name = "heat_treatment:create"
     create_label = "New Heat Treatment Transaction"
     select_related = StageProcess.select_related + ("surface_finish",)
@@ -433,6 +437,7 @@ class FinishingProcess(StageProcess):
     label = "Finishing"
     icon = "bi-brightness-high"
     model_path = "finishing.FinishingTransaction"
+    batch_prefix = "FN"
     create_url_name = "finishing:create"
     create_label = "New Finishing Transaction"
     select_related = StageProcess.select_related + ("surface_finish",)

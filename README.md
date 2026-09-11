@@ -81,12 +81,9 @@ Visit **http://127.0.0.1:8000/** (or **http://localhost:8000/**).
 Convenience scripts that automate the steps above are in `scripts/setup.sh`
 (Linux/macOS) and `scripts/setup.ps1` (Windows).
 
-The database starts **completely empty** — no seeded materials, orders, lots,
-transactions, or stock. The only thing that exists after setup is the admin
-account you create with `createsuperuser`. Everything else (roles, plants,
-locations, machines, materials, products, production orders, lots, and every
-stage transaction) is created dynamically through the UI or the API from that
-point on.
+The database starts **completely empty**. Load the master data and, if you want
+a populated demo, the process history — see
+[Master Data and Demo History](#master-data-and-demo-history) below.
 
 ## Docker
 
@@ -100,12 +97,47 @@ Create your admin account with `docker compose exec web python manage.py
 createsuperuser` after the containers are up. The app also runs standalone
 without Docker (see above).
 
-## Optional: Demo/Sample Data
+## Master Data and Demo History
 
-A `seed_demo_data` management command is included if you want a realistic
-sample dataset to explore the workflow with (master data, one production
-order, three lots at different pipeline stages, and the resulting
-stock/ledger entries) — it is **not** run automatically:
+Master data and process history are loaded by two separate commands, in this
+order:
+
+```bash
+python manage.py seed_masters                  # master data only, safe to re-run
+python manage.py seed_process_history --reset  # first time: clear and generate
+python manage.py seed_process_history --extend # daily: add only the new dates
+```
+
+`seed_masters` loads the official Traveller Type, Traveller No, Surface Finish,
+Diameter and Wire Serial masters. It creates no process records.
+
+`seed_process_history` generates a realistic history from 1 April 2026 to today
+— one batch per traveller type and beyond, at every stage of the pipeline, with
+Rolling batches, stage transactions, WIP movements and finished-goods receipts
+spread across the working days in between. Every record goes through the same
+service functions the screens call, so a successful run proves the pipeline
+works end to end. How far each batch has got depends on how old it is, so every
+Main Table shows both incoming and in-progress rows and every Complete Table has
+history. `--extend` re-runs cheaply each day without touching existing rows.
+
+If any traveller type has no `DiameterTravellerMapping`, the generator invents a
+**provisional** one and prints a loud warning. Replace those with the real values
+as soon as you have them:
+
+```bash
+python manage.py import_traveller_mappings mappings.csv   # seq_no,diameter_mm,f_thickness_mm,f_width_mm
+```
+
+To clear every process record while leaving master data untouched:
+
+```bash
+python manage.py reset_process_data          # dry run - prints what it would delete
+python manage.py reset_process_data --yes    # actually delete
+```
+
+### Optional: role/user fixtures
+
+A `seed_demo_data` command also exists, for demo users and roles:
 
 ```bash
 python manage.py seed_demo_data
