@@ -4,14 +4,21 @@ from django.db import transaction
 from apps.audit.models import log_action
 from apps.inventory import services as inventory_services
 from apps.inventory.models import FinishedGoodsStock
+from apps.production.process_registry import get_process
+from apps.production.services import incoming_record_for
+
+# This module is the Finished Goods process; the registry tells it what
+# hands material over to it and nothing else.
+PROCESS_SLUG = "finished_goods"
 
 
 @transaction.atomic
 def receive_finished_goods(*, lot, product, accepted_quantity, rejected_quantity, location, rack, shelf, tray, user, remarks=""):
-    if not user.can_operate_stage("finished_goods"):
+    process = get_process(PROCESS_SLUG)
+    if not user.can_operate_stage(process.slug):
         raise PermissionDenied("You are not authorized to receive finished goods.")
-    if lot.current_stage != "finished_goods":
-        raise ValidationError("Lot has not completed finishing yet.")
+    if incoming_record_for(process, lot) is None:
+        raise ValidationError(f"Lot has not been handed over by {process.previous.label} yet.")
     if not lot.wire_serial:
         raise ValidationError("Wire Serial is missing for this lot - it cannot be received without a traceable Wire Serial.")
 
@@ -20,7 +27,7 @@ def receive_finished_goods(*, lot, product, accepted_quantity, rejected_quantity
         raise ValidationError("Accepted or rejected quantity must be greater than zero.")
 
     inventory_services.consume_wip(
-        "finished_goods", lot, total_quantity, source_operation=None, user=user,
+        process.slug, lot, total_quantity, source_operation=None, user=user,
         remarks=f"Received into finished goods for lot {lot.lot_number}",
     )
 

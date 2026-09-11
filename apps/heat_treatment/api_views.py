@@ -29,7 +29,7 @@ class HeatTreatmentTransactionViewSet(viewsets.ModelViewSet):
     def complete(self, request, pk=None):
         operation = self.get_object()
         try:
-            complete_stage(operation, request.user, current_stage="heat_treatment")
+            complete_stage(operation, request.user)
         except (DjangoValidationError, PermissionDenied) as exc:
             detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
             return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)

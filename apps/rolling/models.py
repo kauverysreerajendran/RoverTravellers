@@ -3,13 +3,14 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.masters.models import CoilMaster, SurfaceFinish, TravellerNo, TravellerType
+from apps.production.handover import HandoverRecord
 
 # Stored values stay stable; the labels are stage-qualified so the Rolling
 # table reads "Rolling Inprogress" / "Rolling Completed" at a glance.
 STATUS_CHOICES = [("In Progress", "Rolling Inprogress"), ("Completed", "Rolling Completed")]
 
 
-class RollingBatch(models.Model):
+class RollingBatch(HandoverRecord, models.Model):
     """P1 - Rolling process. One batch = one wire serial, issued against a
     Traveller Type's mapped raw material and one or more coils."""
 
@@ -48,6 +49,31 @@ class RollingBatch(models.Model):
 
     def __str__(self):
         return self.wire_serial
+
+    # ------------------------------------------------------------------
+    # Handover contract (see apps/production/handover.py). Rolling is the
+    # origin process: its lot is created at initiation so the carrier
+    # exists for the whole life of the batch, not only after completion.
+    # ------------------------------------------------------------------
+    handover_lot_path = "production_lots"
+
+    @property
+    def handover_lot(self):
+        return self.production_lots.first()
+
+    @property
+    def surface_finish(self):
+        return self.finish
+
+    @property
+    def received_weight(self):
+        """Rolling is the origin process: it issues wire from coils rather
+        than receiving a weight from a predecessor."""
+        return self.wire_weight_issued_kg
+
+    @property
+    def output_weight(self):
+        return self.finished_weight_kg
 
     def clean(self):
         if self.status == "Completed" and self.finished_weight_kg is not None:

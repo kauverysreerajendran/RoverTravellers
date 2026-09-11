@@ -161,24 +161,19 @@ class Command(BaseCommand):
         self.fg_shelf = shelf
 
     def _seed_machines(self, plant):
+        """The machine master is exactly the 1A-1B ... 9A-9B list from spec
+        section 3.1. Nothing outside it may reach a machine dropdown, so the
+        demo transactions draw from that master rather than inventing rows."""
         machines = {}
-        specs = [
-            ("ROL-M1", "Rolling Mill 1", "rolling"),
-            ("FRM-M1", "Forming Press 1", "forming"),
-            ("HT-M1", "Heat Treatment Furnace 1", "heat_treatment"),
-            ("FIN-M1", "Finishing & Polishing Line 1", "finishing"),
-        ]
-        for code, name, stage in specs:
-            m, _ = Machine.objects.get_or_create(code=code, defaults={"name": name, "stage": stage, "plant": plant})
-            machines[stage] = m
-
-        # Required Forming machine codes (spec section 3.1): 1A-1B ... 9A-9B.
         for n in range(1, 10):
             for letter in ("A", "B"):
                 code = f"{n}{letter}"
-                Machine.objects.get_or_create(
-                    code=code, defaults={"name": f"Forming Machine {code}", "stage": "forming", "plant": plant}
+                m, _ = Machine.objects.get_or_create(
+                    code=code, defaults={"name": f"Machine {code}", "stage": "forming", "plant": plant}
                 )
+                machines.setdefault("first", m)
+        for stage in ("rolling", "forming", "heat_treatment", "finishing"):
+            machines[stage] = machines["first"]
         return machines
 
     def _seed_vendors(self):
@@ -297,7 +292,7 @@ class Command(BaseCommand):
         code path the Rolling UI uses) so downstream demo lots carry a
         genuine, database-backed Wire Serial end to end - never a
         placeholder value."""
-        traveller_type = TravellerType.objects.get(seq_no=1)  # U1M UDR -> RM-093
+        traveller_type = TravellerType.objects.get(seq_no=1)  # U1UM UDR -> RM-093
         traveller_no = TravellerNo.objects.get(code=traveller_no_code)
         finish = MasterSurfaceFinish.objects.get(finish_name="Indigo")
         coils = list(CoilMaster.objects.filter(raw_material_id="RM-093", coil_display_number__in=coil_numbers))
@@ -338,7 +333,7 @@ class Command(BaseCommand):
             output_quantity=Decimal("96.80"), traveller_length_mm=Decimal("500.00"), traveller_weight_kg=Decimal("96.50"),
             rejection_quantity=Decimal("0.000"), status="in_progress", created_by=admin_user, updated_by=admin_user,
         )
-        prod_services.complete_stage(forming, admin_user, current_stage="forming")
+        prod_services.complete_stage(forming, admin_user)
 
         heat_treat = HeatTreatmentTransaction.objects.create(
             lot=lot, tt="TT-DEMO-1", t_no="T-DEMO-1", batch_number="HTB-0001", heat_treatment_type="normalizing",
@@ -347,7 +342,7 @@ class Command(BaseCommand):
             input_quantity=Decimal("96.80"), output_quantity=Decimal("95.90"), rejection_quantity=Decimal("0.000"),
             status="in_progress", created_by=admin_user, updated_by=admin_user,
         )
-        prod_services.complete_stage(heat_treat, admin_user, current_stage="heat_treatment")
+        prod_services.complete_stage(heat_treat, admin_user)
 
         finishing = FinishingTransaction.objects.create(
             lot=lot, finishing_operation="Surface Polishing", tt="TT-DEMO-1", t_no="T-DEMO-1", batch_no="FINB-0001",
@@ -356,7 +351,7 @@ class Command(BaseCommand):
             input_quantity=Decimal("95.90"), output_quantity=Decimal("94.50"), rejection_quantity=Decimal("0.000"),
             status="in_progress", created_by=admin_user, updated_by=admin_user,
         )
-        prod_services.complete_stage(finishing, admin_user, current_stage="finishing")
+        prod_services.complete_stage(finishing, admin_user)
 
         fg_stock = fg_services.receive_finished_goods(
             lot=lot, product=product, accepted_quantity=Decimal("92.00"), rejected_quantity=Decimal("2.50"),

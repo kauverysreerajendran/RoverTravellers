@@ -8,6 +8,9 @@ from django.db import models
 from apps.common.models import TimeStampedModel, generate_business_number
 from apps.master_data.models import ProductMaster
 
+from .handover import HandoverRecord
+from .process_registry import PROCESSES
+
 STATUS_CHOICES = [
     ("draft", "Draft"),
     ("in_progress", "In Progress"),
@@ -24,13 +27,11 @@ ORDER_STATUS_CHOICES = [
     ("cancelled", "Cancelled"),
 ]
 
-LOT_STAGE_CHOICES = [
-    ("raw_material", "Raw Material"),
-    ("rolling", "Rolling"),
-    ("forming", "Forming"),
-    ("heat_treatment", "Heat Treatment"),
-    ("finishing", "Finishing"),
-    ("finished_goods", "Finished Goods"),
+# Built from the process registry, so the pipeline order exists in exactly
+# one place. "raw_material" is the only non-process value: it is the state
+# a lot is in before any process has touched it.
+LOT_STAGE_CHOICES = [("raw_material", "Raw Material")] + [
+    (process.slug, process.label) for process in PROCESSES
 ]
 
 
@@ -89,13 +90,12 @@ class ProductionLot(TimeStampedModel):
         return self.source_rolling_batch.wire_serial if self.source_rolling_batch_id else ""
 
     @property
-    def traveller_no(self):
-        return self.source_rolling_batch.traveller_no if self.source_rolling_batch_id else None
+    def traveller_type(self):
+        return self.source_rolling_batch.traveller_type if self.source_rolling_batch_id else None
 
     @property
-    def traveller_date(self):
-        batch = self.source_rolling_batch
-        return batch.created_at.date() if batch and batch.created_at else None
+    def traveller_no(self):
+        return self.source_rolling_batch.traveller_no if self.source_rolling_batch_id else None
 
     @property
     def surface_finish(self):
@@ -103,25 +103,24 @@ class ProductionLot(TimeStampedModel):
 
     @property
     def date_out(self):
-        """Date the material physically left the previous process (Rolling
-        batch completion), distinct from `traveller_date` (when it was issued)."""
+        """Date the material physically left the previous process, i.e. when
+        the Rolling batch was completed."""
         batch = self.source_rolling_batch
         return batch.completed_at.date() if batch and batch.completed_at else None
 
-    @property
-    def time_out(self):
-        batch = self.source_rolling_batch
-        return batch.completed_at.time() if batch and batch.completed_at else None
 
-
-class OperationBase(TimeStampedModel):
+class OperationBase(HandoverRecord, TimeStampedModel):
     """Abstract base shared by every stage transaction (Rolling, Forming,
     Heat Treatment, Finishing). Encapsulates the common OperationInput /
     OperationOutput / OperationRejection quantities plus lifecycle fields."""
 
     transaction_number = models.CharField(max_length=30, unique=True, db_index=True, editable=False)
     lot = models.ForeignKey(ProductionLot, on_delete=models.PROTECT, related_name="%(class)s_operations")
-    machine = models.ForeignKey("master_data.Machine", on_delete=models.PROTECT, related_name="+")
+    # Optional: Heat Treatment does not record a machine at all, while
+    # Forming and Finishing still ask for one on their Initiate screens.
+    machine = models.ForeignKey(
+        "masters.Machine", on_delete=models.PROTECT, related_name="+", null=True, blank=True
+    )
     operator = models.ForeignKey(
         "master_data.Employee", on_delete=models.PROTECT, related_name="+", null=True, blank=True
     )
@@ -136,6 +135,10 @@ class OperationBase(TimeStampedModel):
         "master_data.ReasonCode", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft", db_index=True)
+    # Stamped by `production.services.handover` when the record finishes
+    # here, so the incoming rows of the next process can be ordered by the
+    # moment the material was actually handed over.
+    completed_at = models.DateTimeField(null=True, blank=True)
     remarks = models.TextField(blank=True)
 
     class Meta:

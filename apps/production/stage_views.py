@@ -6,10 +6,17 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.generic import CreateView, DetailView, View
 
-from .models import OperationQualityCheck
+from .models import OperationQualityCheck, ProductionLot
+from .process_registry import get_process
+from .services import incoming_record_for, initiate_stage
 
 
 class StageCreateView(LoginRequiredMixin, CreateView):
+    """Initiate screen. It is always entered from an incoming row on the
+    Main Table (`?lot=`), so it reads the material's identity and its
+    Received Weight from the predecessor record rather than offering a
+    free list of lots."""
+
     template_name = "production/stage_form.html"
     stage = None
     page_title = ""
@@ -17,57 +24,69 @@ class StageCreateView(LoginRequiredMixin, CreateView):
     complete_url_name = ""
     checklist = []
 
+    @property
+    def process(self):
+        return get_process(self.stage)
+
+    def main_table_url(self):
+        return reverse("process:main", kwargs={"process": self.process.slug})
+
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and not request.user.can_operate_stage(self.stage):
             raise PermissionDenied("You are not authorized to create transactions for this stage.")
+
+        lot_id = request.GET.get("lot") or request.POST.get("lot")
+        if not lot_id:
+            messages.error(request, f"Start a {self.page_title} from an incoming row on the Main Table.")
+            return redirect(self.main_table_url())
+
+        self.lot = get_object_or_404(ProductionLot, pk=lot_id)
+        self.incoming = incoming_record_for(self.process, self.lot)
+        if self.incoming is None:
+            messages.error(
+                request,
+                f"{self.lot.wire_serial or self.lot.lot_number} is not waiting at {self.process.label}.",
+            )
+            return redirect(self.main_table_url())
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
         initial = super().get_initial()
-        lot_id = self.request.GET.get("lot")
-        if lot_id:
-            initial["lot"] = lot_id
+        initial["lot"] = self.lot.pk
+        # Read-only on the form; the saved value comes from the predecessor
+        # record server-side, never from what the client posted.
+        initial["input_quantity"] = self.incoming.output_weight
         return initial
 
     def form_valid(self, form):
-        from apps.inventory.models import WIPStock
-
-        lot = form.instance.lot
-        if not lot.wire_serial:
-            form.add_error(
-                None, "Wire Serial is missing for this lot - it cannot be initiated without a traceable Wire Serial."
-            )
+        if form.cleaned_data.get("lot") != self.lot:
+            form.add_error(None, "This transaction does not belong to the incoming lot.")
             return self.form_invalid(form)
 
-        # Prevent duplicate initiation: only one open (non-completed,
-        # non-cancelled) transaction per lot per stage.
-        existing = self.model.objects.filter(lot=lot).exclude(status__in=["completed", "cancelled"]).first()
-        if existing:
-            messages.info(self.request, f"{lot.wire_serial} already has an open {self.page_title} transaction.")
-            return redirect(self.complete_url_name, pk=existing.pk)
-
-        form.instance.created_by = self.request.user
-        form.instance.updated_by = self.request.user
-        form.instance.status = "draft" if "save_draft" in self.request.POST else "in_progress"
-        # Finished Weight (what the previous process handed over) always
-        # comes from that process's WIP
-        # balance, never trusted from the client-submitted form value.
-        available = (
-            WIPStock.objects.filter(stage=self.stage, lot=lot, status="available")
-            .values_list("quantity", flat=True)
+        existing = (
+            self.model.objects.filter(lot=self.lot)
+            .exclude(status__in=["completed", "cancelled", "rejected"])
             .first()
         )
-        if available is not None:
-            form.instance.input_quantity = available
+        if existing:
+            messages.info(self.request, f"{self.lot.wire_serial} already has an open {self.page_title} transaction.")
+            return redirect(self.complete_url_name, pk=existing.pk)
+
+        fields = {
+            name: value for name, value in form.cleaned_data.items()
+            if name not in ("lot", "input_quantity")
+        }
         try:
-            form.instance.full_clean()
+            self.object = initiate_stage(
+                self.process, self.lot, self.request.user,
+                draft="save_draft" in self.request.POST, **fields,
+            )
         except ValidationError as exc:
             for err in exc.messages:
                 form.add_error(None, err)
             return self.form_invalid(form)
-        response = super().form_valid(form)
         messages.success(self.request, f"{self.page_title} {self.object.transaction_number} initiated.")
-        return response
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse(self.complete_url_name, kwargs={"pk": self.object.pk})
@@ -77,6 +96,8 @@ class StageCreateView(LoginRequiredMixin, CreateView):
         ctx["page_title"] = f"New {self.page_title}"
         ctx["checklist"] = self.checklist
         ctx["checklist_title"] = f"{self.page_title} Process"
+        ctx["incoming"] = self.incoming
+        ctx["received_weight"] = self.incoming.output_weight
         return ctx
 
 

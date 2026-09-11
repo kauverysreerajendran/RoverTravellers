@@ -100,17 +100,9 @@
       <a class="nav-link {% if request.resolver_match.url_name == 'rack_locator' %}active{% endif %}" href="{% url 'masters:rack_locator' %}" title="Rack">
         <i class="bi bi-grid-3x3-gap"></i><span class="nav-label">Rack</span>
       </a>
-      <a class="nav-link {% if request.resolver_match.url_name == 'diameter_list' or request.resolver_match.url_name == 'diameter_detail' %}active{% endif %}" href="{% url 'masters:diameter_list' %}" title="Inventory">
-        <i class="bi bi-boxes"></i><span class="nav-label">Inventory</span>
-      </a>
       <a class="nav-link {% if request.resolver_match.app_name == 'reports' %}active{% endif %}" href="{% url 'reports:production' %}" title="Reports">
         <i class="bi bi-bar-chart-line"></i><span class="nav-label">Reports</span>
       </a>
-      {% if user.is_staff %}
-      <a class="nav-link" href="/admin/" title="Settings">
-        <i class="bi bi-gear"></i><span class="nav-label">Settings</span>
-      </a>
-      {% endif %}
     </nav>
     <div class="sidebar-footer">
       <span>Manufacturing</span><span>Inventory</span><span>Growth Together</span>

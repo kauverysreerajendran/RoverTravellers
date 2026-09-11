@@ -2,6 +2,10 @@ from django.db import models
 
 from apps.common.models import MasterDataModel
 
+# Machine lives in apps.masters (the master-table app); it is re-exported
+# here so `from apps.master_data.models import Machine` keeps working.
+from apps.masters.models import Machine  # noqa: F401
+
 
 class UnitOfMeasure(MasterDataModel):
     code = models.CharField(max_length=10, unique=True)
@@ -91,27 +95,6 @@ class Tray(MasterDataModel):
 
     def __str__(self):
         return f"{self.shelf}-{self.code}"
-
-
-class Machine(MasterDataModel):
-    STAGE_CHOICES = [
-        ("rolling", "Rolling"),
-        ("forming", "Forming"),
-        ("heat_treatment", "Heat Treatment"),
-        ("finishing", "Finishing"),
-        ("general", "General"),
-    ]
-    code = models.CharField(max_length=20, unique=True)
-    name = models.CharField(max_length=150)
-    stage = models.CharField(max_length=20, choices=STAGE_CHOICES, default="general")
-    plant = models.ForeignKey(Plant, on_delete=models.PROTECT, related_name="machines")
-    is_operational = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["name"]
-
-    def __str__(self):
-        return f"{self.code} - {self.name}"
 
 
 class Vendor(MasterDataModel):

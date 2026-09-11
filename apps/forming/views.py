@@ -14,7 +14,7 @@ class FormingCreateView(StageCreateView):
     complete_url_name = "forming:complete"
     checklist = [
         "Select the completed Rolling lot and a Forming Machine",
-        "Pick the date - Wire Serial, Traveller No and Finished Weight are auto-filled",
+        "Pick the date - Wire Serial, Traveller No and Received Weight are auto-filled",
         "Initiating creates the transaction; enter Output Weight etc. on the Complete screen",
         "Completing the transaction stages the output for Heat Treatment",
     ]
@@ -35,6 +35,3 @@ class FormingCompleteView(StageCompleteView):
     page_title = "Forming"
     detail_url_name = "forming:detail"
     list_url_name = "forming:list"
-
-    def get_kwargs(self, operation, request):
-        return {"current_stage": "forming"}

@@ -18,7 +18,7 @@ from .models import RollingBatch
 class RollingWorkflowTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_superuser(username="root", email="root@example.com", password="x")
-        self.traveller_type = TravellerType.objects.create(seq_no=1, name="U1M UDR")
+        self.traveller_type = TravellerType.objects.create(seq_no=1, name="U1UM UDR")
         self.traveller_no = TravellerNo.objects.create(code="1", label="Pending label")
         self.finish = SurfaceFinish.objects.create(finish_name="Indigo")
         self.diameter = DiameterMaster.objects.create(raw_material_id="RM-093", diameter_mm=Decimal("0.93"))

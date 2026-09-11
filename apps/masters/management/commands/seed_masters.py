@@ -30,6 +30,7 @@ SURFACE_FINISHES = ["Indigo", "Endura", "Plain/Polish", "Nickel +", "NMAX"]
 # source document - kept as-is; seq_no is the real business key.
 #
 # Client corrections applied on top of the original 1-68 list:
+#    1  "U1M UDR"                        -> "U1UM UDR"
 #   27  "E2F / H2 HO"                    -> "E2F", with "H2 HO" split out as a new type (69)
 #   33  "RC1 HD TN (SAB UDR) R&F NT"     -> "RC1 HD TW (CISDUDR)"
 #   40  "RU1 SM UDR (Kanai Wt NT)"       -> "RU1 SM UDR"
@@ -37,7 +38,7 @@ SURFACE_FINISHES = ["Indigo", "Endura", "Plain/Polish", "Nickel +", "NMAX"]
 #   52  "CON 7/16 R&F"                   -> "CON 7/16"
 #   53  "RU1 SMK UDR (Kanai Wt) Blue (NFC)" -> "RU1 SMK UDR Blue (NFC)"
 TRAVELLER_TYPES = [
-    (1, "U1M UDR"), (2, "U1UL UDR"), (3, "EM1 UDR"), (4, "EM1 FLAT"), (5, "EM1 HO"),
+    (1, "U1UM UDR"), (2, "U1UL UDR"), (3, "EM1 UDR"), (4, "EM1 FLAT"), (5, "EM1 HO"),
     (6, "EM2 UDR"), (7, "EM2 FLAT"), (8, "EM2 HO"), (9, "M1 FLAT"), (10, "M1 UDR"),
     (11, "M1 HO"), (12, "RC1 U1M UDR"), (13, "RC1 HNO"), (14, "RMS HO"), (15, "U1 CEL UDR"),
     (16, "U1 MM UDR"), (17, "RE2 UDR"), (18, "M2 UDR"), (19, "M2 HO"),
@@ -116,8 +117,8 @@ class Command(BaseCommand):
         self.stdout.write(f"  Surface finishes: {SurfaceFinish.objects.count()} rows ({', '.join(SURFACE_FINISHES)})")
 
     def _seed_traveller_numbers(self):
-        TravellerNo.objects.get_or_create(code="1", defaults={"label": "Pending label"})
-        TravellerNo.objects.get_or_create(code="0", defaults={"label": "Pending label"})
+        TravellerNo.objects.get_or_create(code="1")
+        TravellerNo.objects.get_or_create(code="0")
 
         # Traveller No master (spec section 3.2): "1/0" through "25/0", plus
         # plain Traveller Nos "1" through "35" for production requirements
@@ -131,13 +132,13 @@ class Command(BaseCommand):
         self.stdout.write(f"  Traveller numbers: {TravellerNo.objects.count()} rows")
 
     def _seed_confirmed_mapping(self):
-        traveller_type = TravellerType.objects.get(seq_no=1)  # U1M UDR, confirmed == "U1"
+        traveller_type = TravellerType.objects.get(seq_no=1)  # U1UM UDR, confirmed == "U1"
         raw_material = DiameterMaster.objects.get(diameter_mm=Decimal("0.93"))
         DiameterTravellerMapping.objects.update_or_create(
             traveller_type=traveller_type,
             defaults={"raw_material": raw_material, "f_thickness_mm": Decimal("0.41"), "f_width_mm": Decimal("1.78")},
         )
-        self.stdout.write("  Confirmed mapping: U1M UDR -> RM-093 (0.93mm), F-Thickness 0.41mm, F-Width 1.78mm")
+        self.stdout.write("  Confirmed mapping: U1UM UDR -> RM-093 (0.93mm), F-Thickness 0.41mm, F-Width 1.78mm")
 
     def _seed_wire_serials(self):
         """Loads SA01-SA1000, SB01-SB1000, SC01-SC1000 (3000 rows). Everything

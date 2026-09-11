@@ -6,48 +6,70 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import DetailView
 
-from apps.finishing.models import FinishingTransaction
-from apps.inventory.models import FinishedGoodsStock, WIPStock
+from apps.inventory.models import FinishedGoodsStock
 from apps.production.models import ProductionLot
+from apps.production.process_registry import get_process
+from apps.production.services import incoming_record_for
 
 from . import services
 from .forms import FinishedGoodsReceiveForm
 
 
 class FinishedGoodsReceiveView(LoginRequiredMixin, View):
+    """Receiving is always entered from an incoming row on the Finished
+    Goods Main Table, so the lot, its identity and the Received Weight all
+    come from the completed Finishing record rather than a free lot list."""
+
     template_name = "finished_goods/finished_goods_form.html"
 
-    def get(self, request):
-        lot_id = request.GET.get("lot")
-        initial = {}
-        auto = None
-        if lot_id:
-            lot = get_object_or_404(ProductionLot, pk=lot_id, current_stage="finished_goods")
-            available = (
-                WIPStock.objects.filter(stage="finished_goods", lot=lot, status="available")
-                .values_list("quantity", flat=True)
-                .first()
+    @property
+    def process(self):
+        return get_process("finished_goods")
+
+    def main_table_url(self):
+        return reverse("process:main", kwargs={"process": self.process.slug})
+
+    def resolve_incoming(self, request, lot_id):
+        """Return (lot, predecessor record) or (None, None) after messaging
+        the operator why this lot cannot be received."""
+        if not lot_id:
+            messages.error(request, "Start receiving from an incoming row on the Main Table.")
+            return None, None
+        lot = get_object_or_404(ProductionLot, pk=lot_id)
+        incoming = incoming_record_for(self.process, lot)
+        if incoming is None:
+            messages.error(
+                request, f"{lot.wire_serial or lot.lot_number} is not waiting at {self.process.label}."
             )
-            initial["lot"] = lot.pk
-            if available is not None:
-                initial["accepted_quantity"] = available
-            finishing = FinishingTransaction.objects.filter(lot=lot, status="completed").order_by("-created_at").first()
-            auto = {
-                "lot": lot,
-                "wire_serial": lot.wire_serial,
-                "traveller_no": lot.traveller_no,
-                "traveller_date": lot.traveller_date,
-                "surface_finish": finishing.surface_finish if finishing else lot.surface_finish,
-                "colour": finishing.colour if finishing else "",
-                "weight_received": available,
-            }
-        form = FinishedGoodsReceiveForm(initial=initial)
+            return None, None
+        return lot, incoming
+
+    def _auto(self, lot, incoming):
+        return {
+            "lot": lot,
+            "wire_serial": incoming.wire_serial,
+            "traveller_no": incoming.traveller_no,
+            "surface_finish": incoming.surface_finish,
+            "colour": getattr(incoming, "colour", ""),
+            "weight_received": incoming.output_weight,
+        }
+
+    def get(self, request):
+        lot, incoming = self.resolve_incoming(request, request.GET.get("lot"))
+        if lot is None:
+            return redirect(self.main_table_url())
+        form = FinishedGoodsReceiveForm(
+            initial={"lot": lot.pk, "accepted_quantity": incoming.output_weight}
+        )
         return render(
             request, self.template_name,
-            {"form": form, "page_title": "Receive Finished Goods", "auto": auto},
+            {"form": form, "page_title": "Receive Finished Goods", "auto": self._auto(lot, incoming)},
         )
 
     def post(self, request):
+        lot, incoming = self.resolve_incoming(request, request.POST.get("lot"))
+        if lot is None:
+            return redirect(self.main_table_url())
         form = FinishedGoodsReceiveForm(request.POST)
         if form.is_valid():
             try:
@@ -68,14 +90,10 @@ class FinishedGoodsReceiveView(LoginRequiredMixin, View):
             except (ValidationError, PermissionDenied) as exc:
                 detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
                 messages.error(request, detail)
-        auto = None
-        lot = form.cleaned_data.get("lot") if form.is_bound and hasattr(form, "cleaned_data") else None
-        if lot:
-            auto = {
-                "lot": lot, "wire_serial": lot.wire_serial, "traveller_no": lot.traveller_no,
-                "traveller_date": lot.traveller_date, "surface_finish": lot.surface_finish,
-            }
-        return render(request, self.template_name, {"form": form, "page_title": "Receive Finished Goods", "auto": auto})
+        return render(
+            request, self.template_name,
+            {"form": form, "page_title": "Receive Finished Goods", "auto": self._auto(lot, incoming)},
+        )
 
 
 class FinishedGoodsDetailView(LoginRequiredMixin, DetailView):

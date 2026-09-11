@@ -9,6 +9,7 @@ from apps.heat_treatment.models import HeatTreatmentTransaction
 from apps.inventory.models import FinishedGoodsStock, RawMaterialStock, WIPStock
 from apps.master_data.models import MaterialMaster
 from apps.production.models import ProductionLot, ProductionOrder
+from apps.production.process_registry import PROCESSES
 from apps.rolling.models import RollingBatch
 
 # Rolling is deliberately excluded: it now runs on its own wire-serial/coil
@@ -60,7 +61,7 @@ def get_stage_summary():
 
 def get_dashboard_summary():
     total_orders = ProductionOrder.objects.count()
-    active_lots = ProductionLot.objects.exclude(current_stage="finished_goods").count()
+    active_lots = ProductionLot.objects.exclude(current_stage=PROCESSES[-1].slug).count()
 
     wip_by_stage = {
         row["stage"]: row["total"]

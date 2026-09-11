@@ -6,6 +6,7 @@ from django.views.generic import CreateView, DetailView, ListView
 from apps.audit.models import log_action
 
 from . import forms, models, services
+from .process_registry import PROCESSES
 
 
 class ProductionOrderListView(LoginRequiredMixin, ListView):
@@ -150,7 +151,7 @@ class ProcessTrackerView(LoginRequiredMixin, ListView):
             featured_lot = models.ProductionLot.objects.filter(pk=selected_id).first()
         if not featured_lot:
             featured_lot = (
-                models.ProductionLot.objects.exclude(current_stage="finished_goods")
+                models.ProductionLot.objects.exclude(current_stage=PROCESSES[-1].slug)
                 .order_by("-created_at")
                 .first()
                 or models.ProductionLot.objects.order_by("-created_at").first()

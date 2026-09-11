@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from apps.common.models import MasterDataModel
+
 # ---------------------------------------------------------------------------
 # Independent master tables. Every dropdown/auto-populate field on the
 # process forms (Rolling, and later Forming/Heat Treatment/Finishing) is
@@ -29,19 +31,20 @@ class TravellerType(models.Model):
 
 
 class TravellerNo(models.Model):
-    """Placeholder labels ('1'/'0') pending real business meaning — kept
-    DB-driven so a label correction is a data update, not a code change."""
+    """Traveller numbers are bare codes ('1'/'0'). `label` is retained for
+    future business meaning but is never shown: rendering it produced
+    "1 (Pending label)" everywhere the traveller number appears."""
 
     traveller_no_id = models.AutoField(primary_key=True)
     code = models.CharField(max_length=5, unique=True)
-    label = models.CharField(max_length=50, blank=True, default="Pending label")
+    label = models.CharField(max_length=50, blank=True, default="")
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["code"]
 
     def __str__(self):
-        return f"{self.code} ({self.label})" if self.label else self.code
+        return self.code
 
 
 class SurfaceFinish(models.Model):
@@ -183,3 +186,30 @@ class WireSerialMaster(models.Model):
     def format_serial(prefix: str, sequence: int) -> str:
         """SA01 / SB110 / SA1000 - minimum two digits, no truncation."""
         return f"{prefix}{sequence:02d}"
+
+
+class Machine(MasterDataModel):
+    """Production machines. Moved here from `master_data` so it sits with
+    the other master tables (see masters.0005/0006 - the move is state-only
+    plus a table rename, so no row data is touched)."""
+
+    STAGE_CHOICES = [
+        ("rolling", "Rolling"),
+        ("forming", "Forming"),
+        ("heat_treatment", "Heat Treatment"),
+        ("finishing", "Finishing"),
+        ("general", "General"),
+    ]
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=150)
+    stage = models.CharField(max_length=20, choices=STAGE_CHOICES, default="general")
+    plant = models.ForeignKey("master_data.Plant", on_delete=models.PROTECT, related_name="machines")
+    is_operational = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["code"]
+
+    def __str__(self):
+        """Machines are identified by their code alone ("1A"); rendering
+        code + name produced "1A - forming 1A" in every dropdown."""
+        return self.code

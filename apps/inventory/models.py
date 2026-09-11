@@ -7,6 +7,7 @@ from django.db import models
 
 from apps.common.models import TimeStampedModel
 from apps.master_data.models import Location, MaterialMaster, ProductMaster, Rack, ReasonCode, Shelf, Tray
+from apps.production.handover import HandoverRecord
 from apps.production.models import LOT_STAGE_CHOICES, ProductionLot
 
 STOCK_STATUS_CHOICES = [
@@ -53,7 +54,7 @@ class WIPStock(TimeStampedModel):
             raise ValidationError("Stock quantity cannot be negative.")
 
 
-class FinishedGoodsStock(TimeStampedModel):
+class FinishedGoodsStock(HandoverRecord, TimeStampedModel):
     fg_lot_number = models.CharField(max_length=30, unique=True, db_index=True, editable=False)
     product = models.ForeignKey(ProductMaster, on_delete=models.PROTECT, related_name="fg_stock")
     lot = models.ForeignKey(ProductionLot, on_delete=models.PROTECT, related_name="finished_goods")
@@ -87,8 +88,22 @@ class FinishedGoodsStock(TimeStampedModel):
     @property
     def received_quantity(self):
         """Weight handed over by Finishing - what was booked in here,
-        accepted plus rejected. Displayed as "Finished Weight"."""
+        accepted plus rejected. Displayed as "Received Weight"."""
         return (self.accepted_quantity or Decimal("0")) + (self.rejected_quantity or Decimal("0"))
+
+    # Handover contract. Finished Goods is the terminal process, so its
+    # output weight is what it accepted and nothing consumes it onward.
+    @property
+    def received_weight(self):
+        return self.received_quantity
+
+    @property
+    def output_weight(self):
+        return self.accepted_quantity
+
+    @property
+    def completed_at(self):
+        return self.updated_at
 
     def __str__(self):
         return self.fg_lot_number

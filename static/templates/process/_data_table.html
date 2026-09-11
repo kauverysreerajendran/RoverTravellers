@@ -67,7 +67,7 @@ names and never has to change when a process is added.
         </tr>
       </thead>
       <tbody>
-        {% for row in pending_rows %}
+        {% for row in incoming_rows %}
           <tr class="row-pending">
             {% for cell in row.cells %}{% include "process/_cell.html" %}{% endfor %}
             {% if has_actions %}
@@ -93,22 +93,25 @@ names and never has to change when a process is added.
           </tr>
         {% endfor %}
 
-        {% if not rows and not pending_rows %}
+        {% if not rows and not incoming_rows %}
           <tr>
             <td colspan="{{ columns|length|add:1 }}">
               <div class="process-state process-state-empty">
                 <i class="bi bi-inbox"></i>
                 <div>
-                  <div class="process-state-title">
-                    {% if search or status %}No records match this filter{% else %}No {{ process_label|lower }} records yet{% endif %}
-                  </div>
-                  <div class="process-state-sub">
-                    {% if search or status %}
-                      Try clearing the search or status filter.
-                    {% else %}
-                      Records appear here as soon as material reaches {{ process_label }}.
-                    {% endif %}
-                  </div>
+                  {% if search or status %}
+                    <div class="process-state-title">No records match this filter</div>
+                    <div class="process-state-sub">Try clearing the search or status filter.</div>
+                  {% elif submenu == "main" %}
+                    <div class="process-state-title">Nothing in progress at {{ process_label }}</div>
+                    <div class="process-state-sub">
+                      Material appears here when the previous process completes.
+                      Finished work has moved to the Complete Table and on to the next process.
+                    </div>
+                  {% else %}
+                    <div class="process-state-title">No completed {{ process_label|lower }} records yet</div>
+                    <div class="process-state-sub">Records land here once they are completed at {{ process_label }}.</div>
+                  {% endif %}
                 </div>
               </div>
             </td>
@@ -123,7 +126,9 @@ names and never has to change when a process is added.
       {% if page_obj %}
         Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
       {% endif %}
-      {% if pending_rows %}<span class="pending-note">+ {{ pending_rows|length }} awaiting action</span>{% endif %}
+      {% if incoming_rows %}
+        <span class="pending-note">+ {{ incoming_count }} incoming from {{ incoming_from }}</span>
+      {% endif %}
     </div>
     {% if is_paginated %}
       <nav aria-label="Pagination">

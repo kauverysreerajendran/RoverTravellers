@@ -7,22 +7,23 @@ generated from this registry, so adding a sixth process means adding one
 entry here - no new views, templates, routes or menu markup.
 
 Weight label convention (see ``Column`` usages below):
-  * "Finished Weight" - the weight handed over BY the previous process,
+  * "Received Weight" - the weight handed over BY the previous process,
     auto-fetched, never typed by the user.
   * "Output Weight"   - the weight this process itself recorded.
 Rolling is the origin process, so it issues wire from coils ("Weight
-Issued") instead of receiving a finished weight from an earlier stage.
+Issued") instead of receiving a weight from an earlier process.
+
+Process order lives in the ``PROCESSES`` list at the bottom of this file
+and nowhere else: ``ProcessConfig.previous``/``.next`` are resolved from
+it, and every "what comes next" decision in the codebase goes through
+them rather than a stage-name literal.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from django.apps import apps
-from django.db.models import Count, F, OuterRef, Q, Subquery
-from django.db.models.functions import Coalesce
+from django.db.models import Count, Q
 from django.urls import reverse
-
-# Status codes rendered as "badge-status-<code>" by rover.css.
-PENDING_STATUS = {"code": "pending", "value": "Pending"}
 
 
 @dataclass(frozen=True)
@@ -61,27 +62,6 @@ def resolve(obj, path):
     return value
 
 
-def pending_lots_for_stage(stage):
-    """Lots whose previous process is done but which have no transaction
-    at `stage` yet, annotated with `wip_quantity` - the weight that
-    process actually handed over (the WIP balance staged for this stage),
-    never the lot's original quantity, which does not shrink as material
-    moves down the line."""
-    lot_model = apps.get_model("production.ProductionLot")
-    wip_model = apps.get_model("inventory.WIPStock")
-    handed_over = (
-        wip_model.objects.filter(stage=stage, lot=OuterRef("pk"), status="available")
-        .order_by("-created_at")
-        .values("quantity")[:1]
-    )
-    return (
-        lot_model.objects.filter(current_stage=stage)
-        .annotate(wip_quantity=Coalesce(Subquery(handed_over), F("quantity")))
-        .select_related("source_rolling_batch")
-        .order_by("-created_at")
-    )
-
-
 def _status_cell(obj, accessor):
     raw = resolve(obj, accessor)
     if raw is None:
@@ -110,6 +90,26 @@ class ProcessConfig:
     complete_description = ""
     create_url_name = ""
     create_label = ""
+    # Button offered on an incoming row from the previous process.
+    initiate_label = "Initiate"
+    # ORM path from one of this process's records to the ProductionLot it
+    # hands to the next process (see apps/production/handover.py).
+    handover_lot_path = "lot"
+    # How this process's finished records are ordered when they appear as
+    # incoming rows on the next process. Every record exposes `completed_at`
+    # through the handover contract, but the terminal process serves it as
+    # a property rather than a column, so the ORM path is declared here.
+    handover_ordering = "-completed_at"
+    # The status a record carries once it has finished here. Rolling and
+    # the OperationBase stages spell it differently, so the vocabulary
+    # lives with the process rather than in the completion service.
+    completed_status = ""
+
+    # Statuses that are still open work. Rows in these statuses belong on
+    # the Main Table (alongside material that has not started yet);
+    # everything else has finished here and belongs on the Complete Table
+    # - and, once finished, shows up on the next process's Main Table.
+    open_statuses = ()
 
     # ------------------------------------------------------------------
     # Data
@@ -146,22 +146,89 @@ class ProcessConfig:
         return qs
 
     def main_queryset(self, request):
-        return self.base_queryset()
+        """Open work only: anything finished has moved on."""
+        qs = self.base_queryset()
+        if self.open_statuses:
+            qs = qs.filter(**{f"{self.status_field}__in": list(self.open_statuses)})
+        return qs
 
     def complete_queryset(self, request):
-        return self.base_queryset()
+        """Everything that finished here - partially or fully completed."""
+        qs = self.base_queryset()
+        if self.open_statuses:
+            qs = qs.exclude(**{f"{self.status_field}__in": list(self.open_statuses)})
+        return qs
 
-    def status_choices(self):
-        return self.model._meta.get_field(self.status_field).choices or []
+    def status_choices(self, submenu="main"):
+        """Only offer the statuses a given table can actually contain."""
+        choices = self.model._meta.get_field(self.status_field).choices or []
+        if not self.open_statuses:
+            return choices
+        if submenu == "main":
+            return [(code, label) for code, label in choices if code in self.open_statuses]
+        return [(code, label) for code, label in choices if code not in self.open_statuses]
 
     # ------------------------------------------------------------------
-    # Rows awaiting initiation (shown at the top of the Main Table)
+    # Neighbours - the only place process order is known
     # ------------------------------------------------------------------
-    def pending_rows(self, request):
-        return []
+    @property
+    def index(self):
+        return PROCESSES.index(self)
 
-    def pending_actions(self, lot):
-        return []
+    @property
+    def previous(self):
+        """The process that hands material to this one, or None if this is
+        the origin process."""
+        position = self.index
+        return PROCESSES[position - 1] if position > 0 else None
+
+    @property
+    def next(self):
+        """The process this one hands material to, or None if terminal."""
+        position = self.index
+        return PROCESSES[position + 1] if position + 1 < len(PROCESSES) else None
+
+    # ------------------------------------------------------------------
+    # Incoming rows - material the previous process completed and this
+    # process has not picked up yet. One implementation, no slug literals,
+    # so a sixth process added to PROCESSES gets this for free.
+    # ------------------------------------------------------------------
+    def claimed_lot_ids(self):
+        """Lots this process has already taken up. A cancelled or rejected
+        record does not count as taken - otherwise the lot would vanish
+        from both tables and get stuck."""
+        qs = self.model.objects.exclude(**{f"{self.status_field}__in": ["cancelled", "rejected"]})
+        return list(qs.values_list(f"{self.handover_lot_path}_id", flat=True))
+
+    def incoming_queryset(self, request):
+        previous = self.previous
+        if previous is None:
+            return None
+        path = previous.handover_lot_path
+        return (
+            previous.complete_queryset(request)
+            .filter(**{f"{path}__isnull": False})
+            .exclude(**{f"{path}__in": self.claimed_lot_ids()})
+            .order_by(previous.handover_ordering)
+            .distinct()
+        )
+
+    def incoming_status_cell(self):
+        previous = self.previous
+        label = f"Incoming from {previous.label}" if previous else "Incoming"
+        return {"kind": "status", "code": "incoming", "value": label}
+
+    def incoming_action(self, record):
+        lot = record.handover_lot
+        if lot is None or not self.create_url_name:
+            return []
+        return [
+            {
+                "label": self.initiate_label,
+                "url": f"{reverse(self.create_url_name)}?lot={lot.pk}",
+                "style": "primary",
+            }
+        ]
 
     def row_actions(self, obj):
         return []
@@ -169,13 +236,15 @@ class ProcessConfig:
     # ------------------------------------------------------------------
     # Rendering helpers
     # ------------------------------------------------------------------
-    def build_cells(self, obj, columns, *, pending=False):
+    def build_cells(self, obj, columns, *, incoming=False):
+        """`incoming=True` renders a predecessor record through the
+        handover contract, using each column's `pending` accessor."""
         cells = []
         for column in columns:
             if column.kind == "status":
-                cells.append(PENDING_STATUS | {"kind": "status"} if pending else _status_cell(obj, column.accessor))
+                cells.append(self.incoming_status_cell() if incoming else _status_cell(obj, column.accessor))
                 continue
-            path = column.pending if pending else column.accessor
+            path = column.pending if incoming else column.accessor
             cells.append(
                 {
                     "kind": column.kind,
@@ -188,11 +257,32 @@ class ProcessConfig:
     def build_rows(self, objects, columns):
         return [{"cells": self.build_cells(obj, columns), "actions": self.row_actions(obj)} for obj in objects]
 
-    def build_pending_rows(self, lots, columns):
+    def build_incoming_rows(self, records, columns):
         return [
-            {"cells": self.build_cells(lot, columns, pending=True), "actions": self.pending_actions(lot), "pending": True}
-            for lot in lots
+            {"cells": self.build_cells(record, columns, incoming=True),
+             "actions": self.incoming_action(record), "pending": True}
+            for record in records
         ]
+
+
+# ----------------------------------------------------------------------
+# Columns every process downstream of the origin shares. Because every
+# record class implements the same handover contract, one accessor works
+# for a real row and for an incoming row from the previous process.
+# ----------------------------------------------------------------------
+IDENTITY_COLUMNS = (
+    Column("Wire Serial", "wire_serial", pending="wire_serial", strong=True,
+           order_by="lot__source_rolling_batch__wire_serial"),
+    Column("Traveller Type", "traveller_type.name", pending="traveller_type.name",
+           order_by="lot__source_rolling_batch__traveller_type__name"),
+    Column("Traveller No", "traveller_no.code", pending="traveller_no.code"),
+)
+
+RECEIVED_WEIGHT_COLUMN = Column(
+    "Received Weight (kg)", "received_weight", pending="output_weight", kind="number", order_by="input_quantity"
+)
+
+STATUS_COLUMN = Column("Status", "status", kind="status", order_by="status")
 
 
 # ----------------------------------------------------------------------
@@ -203,23 +293,24 @@ class RollingProcess(ProcessConfig):
     label = "Rolling"
     icon = "bi-arrow-repeat"
     model_path = "rolling.RollingBatch"
-    select_related = ("traveller_type", "traveller_no", "finish", "created_by")
+    select_related = ("traveller_type", "traveller_no", "finish")
     annotations = {"coil_count": Count("coils_used", distinct=True)}
     search_fields = ("wire_serial", "traveller_type__name", "traveller_no__code", "finish__finish_name")
     search_placeholder = "Search wire serial, traveller type, finish..."
     create_url_name = "rolling:create"
     create_label = "New Rolling Batch"
-    main_description = "Rolling batches in progress and completed, with the wire serial issued against each."
-    complete_description = "Every Rolling record with the full batch specification, coil draw and completion values."
+    complete_description = "Completed Rolling batches with the full specification, coil draw and completion values."
+    open_statuses = ("In Progress",)
+    completed_status = "Completed"
+    handover_lot_path = "production_lots"
 
     main_columns = (
         Column("Wire Serial", "wire_serial", strong=True, order_by="wire_serial"),
         Column("Traveller Type", "traveller_type.name", order_by="traveller_type__name"),
         Column("Traveller No", "traveller_no.code"),
         Column("Surface Finish", "finish.finish_name"),
+        Column("Wire Dia (mm)", "wire_diameter_mm", kind="number"),
         Column("Weight Issued (kg)", "wire_weight_issued_kg", kind="number", order_by="wire_weight_issued_kg"),
-        Column("Output Weight (kg)", "finished_weight_kg", kind="number", order_by="finished_weight_kg"),
-        Column("Wastage (kg)", "wastage_kg", kind="number"),
         Column("Status", "status", kind="status", order_by="status"),
     )
 
@@ -239,9 +330,6 @@ class RollingProcess(ProcessConfig):
         Column("Output Weight (kg)", "finished_weight_kg", kind="number", order_by="finished_weight_kg"),
         Column("Wastage (kg)", "wastage_kg", kind="number"),
         Column("Status", "status", kind="status", order_by="status"),
-        Column("Created By", "created_by"),
-        Column("Created", "created_at", kind="datetime", order_by="created_at"),
-        Column("Completed", "completed_at", kind="datetime", order_by="completed_at"),
     )
 
     def row_actions(self, obj):
@@ -261,37 +349,18 @@ class StageProcess(ProcessConfig):
     """Forming / Heat Treatment / Finishing all run on OperationBase, so
     they share one adapter parameterised by `stage` and column sets."""
 
-    stage = ""
-    select_related = ("lot", "lot__source_rolling_batch", "machine", "operator", "shift")
+    select_related = ("lot", "lot__source_rolling_batch__traveller_type", "machine")
     ordering = "-created_at"
+    # Draft/in-progress is open work; completed, rejected and cancelled
+    # records have left this stage and live on the Complete Table.
+    open_statuses = ("draft", "in_progress")
+    completed_status = "completed"
 
     # Columns every stage shows, before its process-specific ones.
-    identity_columns = (
-        Column("Wire Serial", "lot.wire_serial", pending="wire_serial", strong=True,
-               order_by="lot__source_rolling_batch__wire_serial"),
-        Column("Traveller No", "lot.traveller_no", pending="traveller_no"),
-        Column("Traveller Date", "lot.traveller_date", pending="traveller_date", kind="date"),
-    )
-    weight_columns = (
-        Column("Finished Weight (kg)", "input_quantity", pending="wip_quantity", kind="number", order_by="input_quantity"),
-        Column("Output Weight (kg)", "output_quantity", kind="number", order_by="output_quantity"),
-        Column("Status", "status", kind="status", order_by="status"),
-    )
-
-    def pending_rows(self, request):
-        """Material that finished the previous process but has no
-        transaction at this stage yet - the 'Initiate' rows."""
-        started = self.model.objects.values_list("lot_id", flat=True)
-        return pending_lots_for_stage(self.stage).exclude(pk__in=list(started))
-
-    def pending_actions(self, lot):
-        return [
-            {
-                "label": "Initiate",
-                "url": f"{reverse(self.create_url_name)}?lot={lot.pk}",
-                "style": "primary",
-            }
-        ]
+    identity_columns = IDENTITY_COLUMNS
+    # Main Table: only the weight handed over, since nothing here has
+    # produced an output weight yet.
+    weight_columns = (RECEIVED_WEIGHT_COLUMN, STATUS_COLUMN)
 
     def row_actions(self, obj):
         detail = reverse(f"{self.slug}:detail", kwargs={"pk": obj.pk})
@@ -305,7 +374,6 @@ class StageProcess(ProcessConfig):
 
 class FormingProcess(StageProcess):
     slug = "forming"
-    stage = "forming"
     label = "Forming"
     icon = "bi-bounding-box"
     model_path = "forming.FormingTransaction"
@@ -313,113 +381,78 @@ class FormingProcess(StageProcess):
     create_label = "New Forming Transaction"
     search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "machine__code")
     search_placeholder = "Search wire serial, transaction, machine..."
-    main_description = "Material received from completed Rolling batches, plus Forming transactions under way."
-    complete_description = "Every Forming record with machine, traveller measurements and calculated wastage."
 
     main_columns = (
         *StageProcess.identity_columns,
-        Column("Time Out", "lot.time_out", pending="time_out", kind="time"),
-        Column("Date Out", "lot.date_out", pending="date_out", kind="date"),
-        Column("Surface Finish", "lot.surface_finish", pending="surface_finish"),
+        Column("Surface Finish", "surface_finish.finish_name", pending="surface_finish.finish_name"),
         *StageProcess.weight_columns,
     )
 
     complete_columns = (
-        Column("Transaction #", "transaction_number", strong=True, order_by="transaction_number"),
         *StageProcess.identity_columns,
-        Column("Time Out", "lot.time_out", kind="time"),
-        Column("Date Out", "lot.date_out", kind="date"),
-        Column("Surface Finish", "lot.surface_finish"),
+        Column("Surface Finish", "surface_finish.finish_name"),
         Column("Machine", "machine.code"),
-        Column("Operator", "operator"),
-        Column("Shift", "shift.code"),
         Column("Date", "operation_date", kind="date"),
-        Column("Finished Weight (kg)", "input_quantity", kind="number"),
+        Column("Received Weight (kg)", "received_weight", kind="number"),
         Column("Output Weight (kg)", "output_quantity", kind="number"),
         Column("Traveller Length (mm)", "traveller_length_mm", kind="number"),
         Column("Traveller Weight (kg)", "traveller_weight_kg", kind="number"),
         Column("Wastage (kg)", "wastage_kg", kind="number"),
         Column("Wastage %", "wastage_percent", kind="number"),
-        Column("Rejection (kg)", "rejection_quantity", kind="number"),
         Column("Status", "status", kind="status", order_by="status"),
-        Column("Created", "created_at", kind="datetime", order_by="created_at"),
     )
 
 
 class HeatTreatmentProcess(StageProcess):
     slug = "heat_treatment"
-    stage = "heat_treatment"
     label = "Heat Treatment"
     icon = "bi-fire"
     model_path = "heat_treatment.HeatTreatmentTransaction"
     create_url_name = "heat_treatment:create"
     create_label = "New Heat Treatment Transaction"
     select_related = StageProcess.select_related + ("surface_finish",)
-    search_fields = (
-        "transaction_number", "lot__source_rolling_batch__wire_serial", "tt", "t_no", "batch_number", "machine__code",
-    )
-    search_placeholder = "Search wire serial, TT, T No, batch no..."
-    main_description = "Material received from completed Forming transactions, plus Heat Treatment runs under way."
-    complete_description = "Every Heat Treatment record with TT, T No, batch, furnace parameters and finished values."
+    search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "batch_number")
+    search_placeholder = "Search wire serial, batch no..."
+    complete_description = "Completed Heat Treatment records - partial and full - with batch number and surface finish."
 
     main_columns = (*StageProcess.identity_columns, *StageProcess.weight_columns)
 
     complete_columns = (
-        Column("Transaction #", "transaction_number", strong=True, order_by="transaction_number"),
         *StageProcess.identity_columns,
-        Column("TT", "tt"),
-        Column("T No", "t_no"),
         Column("Batch No", "batch_number"),
         Column("Surface Finish", "surface_finish.finish_name"),
-        Column("Machine", "machine.code"),
-        Column("Operator", "operator"),
         Column("Date", "operation_date", kind="date"),
-        Column("HT Type", "get_heat_treatment_type_display"),
-        Column("Temperature (C)", "temperature_celsius", kind="number"),
-        Column("Holding Time (min)", "holding_time_minutes", kind="number"),
-        Column("Finished Weight (kg)", "input_quantity", kind="number"),
+        Column("Received Weight (kg)", "received_weight", kind="number"),
         Column("Output Weight (kg)", "output_quantity", kind="number"),
-        Column("Rejection (kg)", "rejection_quantity", kind="number"),
         Column("Status", "status", kind="status", order_by="status"),
-        Column("Created", "created_at", kind="datetime", order_by="created_at"),
     )
 
 
 class FinishingProcess(StageProcess):
     slug = "finishing"
-    stage = "finishing"
     label = "Finishing"
     icon = "bi-brightness-high"
     model_path = "finishing.FinishingTransaction"
     create_url_name = "finishing:create"
     create_label = "New Finishing Transaction"
     select_related = StageProcess.select_related + ("surface_finish",)
-    search_fields = (
-        "transaction_number", "lot__source_rolling_batch__wire_serial", "tt", "t_no", "batch_no", "colour",
-    )
-    search_placeholder = "Search wire serial, TT, T No, batch no, colour..."
-    main_description = "Material received from completed Heat Treatment runs, plus Finishing transactions under way."
-    complete_description = "Every Finishing record with TT, T No, batch, colour and finished traveller values."
+    search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "batch_no", "colour")
+    search_placeholder = "Search wire serial, batch no, colour..."
+    complete_description = "Completed Finishing records - partial and full - with batch number and colour."
 
     main_columns = (*StageProcess.identity_columns, *StageProcess.weight_columns)
 
     complete_columns = (
-        Column("Transaction #", "transaction_number", strong=True, order_by="transaction_number"),
         *StageProcess.identity_columns,
-        Column("TT", "tt"),
-        Column("T No", "t_no"),
         Column("Batch No", "batch_no"),
         Column("Surface Finish", "surface_finish.finish_name"),
         Column("Colour", "colour"),
         Column("Machine", "machine.code"),
-        Column("Operator", "operator"),
         Column("Date", "operation_date", kind="date"),
-        Column("Finished Weight (kg)", "input_quantity", kind="number"),
+        Column("Received Weight (kg)", "received_weight", kind="number"),
         Column("Output Weight (kg)", "output_quantity", kind="number"),
         Column("Traveller Weight (kg)", "traveller_weight_kg", kind="number"),
-        Column("Rejection (kg)", "rejection_quantity", kind="number"),
         Column("Status", "status", kind="status", order_by="status"),
-        Column("Created", "created_at", kind="datetime", order_by="created_at"),
     )
 
 
@@ -432,50 +465,38 @@ class FinishedGoodsProcess(ProcessConfig):
     label = "Finished Goods"
     icon = "bi-box-seam"
     model_path = "inventory.FinishedGoodsStock"
-    select_related = ("product", "lot", "lot__source_rolling_batch", "location", "rack", "shelf", "quality_approved_by")
+    select_related = ("lot", "lot__source_rolling_batch__traveller_type", "location", "rack", "shelf")
     search_fields = ("fg_lot_number", "lot__source_rolling_batch__wire_serial", "product__product_code")
     search_placeholder = "Search wire serial, FG lot, product..."
     create_url_name = "finished_goods:receive"
     create_label = "Receive Finished Goods"
-    main_description = "Material received from completed Finishing transactions, plus finished goods already booked in."
-    complete_description = "Every Finished Goods record with product, storage location and quality decision."
+    initiate_label = "Receive"
+    handover_ordering = "-updated_at"
+    # Stock on QC hold is still open work; approved/rejected stock is done.
+    open_statuses = ("hold",)
+    completed_status = "available"
+
+    # Received Weight is a property here (accepted + rejected), so unlike
+    # the stages it has no ORM path to sort on.
+    received_weight_column = Column(
+        "Received Weight (kg)", "received_weight", pending="output_weight", kind="number"
+    )
 
     main_columns = (
-        Column("Wire Serial", "lot.wire_serial", pending="wire_serial", strong=True,
-               order_by="lot__source_rolling_batch__wire_serial"),
-        Column("Traveller No", "lot.traveller_no", pending="traveller_no"),
-        Column("Traveller Date", "lot.traveller_date", pending="traveller_date", kind="date"),
-        Column("Finished Weight (kg)", "received_quantity", pending="wip_quantity", kind="number"),
-        Column("Output Weight (kg)", "accepted_quantity", kind="number", order_by="accepted_quantity"),
-        Column("Status", "status", kind="status", order_by="status"),
+        *IDENTITY_COLUMNS,
+        received_weight_column,
+        STATUS_COLUMN,
     )
 
     complete_columns = (
-        Column("FG Batch #", "fg_lot_number", strong=True, order_by="fg_lot_number"),
-        Column("Wire Serial", "lot.wire_serial"),
-        Column("Traveller No", "lot.traveller_no"),
-        Column("Traveller Date", "lot.traveller_date", kind="date"),
-        Column("Product", "product.product_code"),
+        *IDENTITY_COLUMNS,
         Column("Location", "location.code"),
         Column("Rack", "rack.code"),
         Column("Shelf", "shelf.code"),
-        Column("Finished Weight (kg)", "received_quantity", kind="number"),
+        received_weight_column,
         Column("Output Weight (kg)", "accepted_quantity", kind="number", order_by="accepted_quantity"),
-        Column("Rejected (kg)", "rejected_quantity", kind="number"),
-        Column("QC Approved", "quality_approved", kind="bool"),
-        Column("Approved By", "quality_approved_by"),
-        Column("Status", "status", kind="status", order_by="status"),
-        Column("Created", "created_at", kind="datetime", order_by="created_at"),
+        STATUS_COLUMN,
     )
-
-    def pending_rows(self, request):
-        received = self.model.objects.values_list("lot_id", flat=True)
-        return pending_lots_for_stage("finished_goods").exclude(pk__in=list(received))
-
-    def pending_actions(self, lot):
-        return [
-            {"label": "Receive", "url": f"{reverse('finished_goods:receive')}?lot={lot.pk}", "style": "primary"}
-        ]
 
     def row_actions(self, obj):
         return [
@@ -499,3 +520,17 @@ PROCESS_BY_SLUG = {process.slug: process for process in PROCESSES}
 
 def get_process(slug):
     return PROCESS_BY_SLUG.get(slug)
+
+
+def process_sequence():
+    """The process slugs in pipeline order - the single source of truth for
+    every "which stage comes next" question in the codebase."""
+    return [process.slug for process in PROCESSES]
+
+
+def process_for_record(record):
+    """The process a given record belongs to, resolved by model class."""
+    for process in PROCESSES:
+        if isinstance(record, process.model):
+            return process
+    return None

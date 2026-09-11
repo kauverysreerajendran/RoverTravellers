@@ -2,6 +2,11 @@
   --rover-red: #e31e2d;
   --rover-red-dark: #c01521;
   --rover-red-tint: #fdecec;
+  /* Sidebar active state: a red wash + accent bar rather than a solid
+     fill, which read as an alert banner against the navy. */
+  --rover-red-soft: rgba(227, 30, 45, .16);
+  --rover-red-soft-hover: rgba(227, 30, 45, .24);
+  --rover-red-light: #ff6b73;
   --rover-navy: #101a2b;
   --rover-navy-2: #17233a;
   --rover-ink: #1f2733;
@@ -180,20 +185,28 @@ a { color: var(--rover-red); }
 .sidebar-nav .nav-link {
   display: flex; align-items: center; gap: .8rem;
   color: rgba(255,255,255,.88);
-  padding: .72rem 1.4rem;
+  margin: .12rem .7rem;
+  padding: .7rem 1rem;
+  border-radius: 12px;
   font-size: .9rem; font-weight: 500;
   white-space: nowrap;
-  border-left: 3px solid transparent;
+  text-decoration: none;
+  transition: background .15s ease, color .15s ease;
 }
 .sidebar-nav .nav-link i { font-size: 1.05rem; width: 1.25rem; text-align: center; flex-shrink: 0; }
 .sidebar-nav .nav-link:hover { background: rgba(255,255,255,.08); color: #fff; }
-.sidebar-nav .nav-link.active { background: var(--rover-red); color: #fff; font-weight: 600; border-left-color: #ff6b74; }
+.sidebar-nav .nav-link.active {
+  background: var(--rover-red-soft); color: #fff; font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--rover-red);
+}
+.sidebar-nav .nav-link.active i { color: var(--rover-red-light); }
+.sidebar-nav .nav-link.active:hover { background: var(--rover-red-soft-hover); color: #fff; }
 .sidebar-divider { height: 1px; background: rgba(255,255,255,.14); margin: .75rem 1.25rem; }
 
 /* ---- Process groups with Main / Complete submenus ---- */
 .nav-group { position: relative; }
 .sidebar-nav .nav-group-toggle {
-  width: 100%; text-align: left; border: none; border-left: 3px solid transparent;
+  width: calc(100% - 1.4rem); text-align: left; border: none;
   background: transparent; font-family: inherit; cursor: pointer;
 }
 .nav-caret {
@@ -201,22 +214,33 @@ a { color: var(--rover-red); }
   opacity: .65; transition: transform .18s ease;
 }
 .nav-group-toggle[aria-expanded="true"] .nav-caret { transform: rotate(180deg); }
-.nav-group.is-active > .nav-group-toggle { background: var(--rover-red); color: #fff; font-weight: 600; border-left-color: #ff6b74; }
+.nav-group.is-active > .nav-group-toggle {
+  background: var(--rover-red-soft); color: #fff; font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--rover-red);
+}
+.nav-group.is-active > .nav-group-toggle i:not(.nav-caret) { color: var(--rover-red-light); }
+.nav-group.is-active > .nav-group-toggle:hover { background: var(--rover-red-soft-hover); color: #fff; }
 
-.nav-submenu { background: rgba(0,0,0,.22); padding: .2rem 0; }
+.nav-submenu { padding: .1rem 0 .3rem; }
 .nav-sublink {
-  display: flex; align-items: center; gap: .65rem;
-  padding: .5rem 1.4rem .5rem 2.45rem;
+  display: flex; align-items: center; gap: .6rem;
+  margin: .1rem .7rem .1rem 2.1rem;
+  padding: .45rem .9rem;
+  border-radius: 10px;
   color: rgba(255,255,255,.72); font-size: .82rem; text-decoration: none;
-  border-left: 3px solid transparent; white-space: nowrap;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
 }
 .nav-sublink:hover { background: rgba(255,255,255,.08); color: #fff; }
-.nav-sublink.active { color: #fff; font-weight: 600; border-left-color: var(--rover-red); background: rgba(255,255,255,.06); }
+.nav-sublink.active {
+  background: var(--rover-red-soft); color: #fff; font-weight: 600;
+}
+.nav-sublink.active:hover { background: var(--rover-red-soft-hover); }
 .nav-subdot {
   width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
   background: rgba(255,255,255,.45);
 }
-.nav-sublink.active .nav-subdot { background: var(--rover-red); box-shadow: 0 0 0 3px rgba(227,30,45,.25); }
+.nav-sublink.active .nav-subdot { background: var(--rover-red-light); }
 
 .sidebar-footer {
   padding: 1rem 1.4rem 1.25rem;
@@ -237,7 +261,8 @@ a { color: var(--rover-red); }
   html.rover-sidebar-collapsed .sidebar-footer { display: none; }
   html.rover-sidebar-collapsed .brand-logo-img { height: 24px; }
   html.rover-sidebar-collapsed .sidebar-collapse-btn { margin: 0 auto .35rem; transform: rotate(180deg); }
-  html.rover-sidebar-collapsed .sidebar-nav .nav-link { justify-content: center; padding: .8rem .5rem; }
+  html.rover-sidebar-collapsed .sidebar-nav .nav-link { justify-content: center; padding: .8rem .5rem; margin: .12rem .6rem; }
+  html.rover-sidebar-collapsed .sidebar-nav .nav-group-toggle { width: calc(100% - 1.2rem); }
   html.rover-sidebar-collapsed .sidebar-divider { margin: .75rem .9rem; }
   /* Icon rail: submenus and carets are hidden; clicking a process icon
      re-expands the sidebar and opens that group (see rover.js). */
@@ -439,6 +464,8 @@ a { color: var(--rover-red); }
 .badge-status-pass { background: var(--rover-success-tint); color: var(--rover-success); }
 .badge-status-fail { background: var(--rover-danger-tint); color: var(--rover-danger); }
 .badge-status-pending { background: var(--rover-warning-tint); color: var(--rover-warning); }
+/* Material handed over by the previous process, not yet initiated here. */
+.badge-status-incoming { background: var(--rover-warning-tint); color: var(--rover-warning); }
 .badge-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: .4em; }
 
 /* KPI / stat tiles */

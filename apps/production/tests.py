@@ -58,7 +58,7 @@ class WorkflowTestBase(TestCase):
         # one via a (minimal, directly-created) completed Rolling batch -
         # these tests only exercise Forming onward, not Rolling itself
         # (see apps.rolling.tests for Rolling-specific coverage).
-        traveller_type = TravellerType.objects.create(seq_no=1, name="U1M UDR")
+        traveller_type = TravellerType.objects.create(seq_no=1, name="U1UM UDR")
         traveller_no = TravellerNo.objects.create(code="1/0", label="1/0")
         finish = SurfaceFinish.objects.create(finish_name="Indigo")
         self.rolling_batch = RollingBatch.objects.create(
@@ -95,11 +95,11 @@ class ProductionOrderLotTests(WorkflowTestBase):
     def test_duplicate_stage_completion_prevented(self):
         self.seed_forming_wip("500")
         forming = self.make_forming()
-        prod_services.complete_stage(forming, self.admin, current_stage="forming")
+        prod_services.complete_stage(forming, self.admin)
         forming.refresh_from_db()
         self.assertEqual(forming.status, "completed")
         with self.assertRaises(ValidationError):
-            prod_services.complete_stage(forming, self.admin, current_stage="forming")
+            prod_services.complete_stage(forming, self.admin)
 
 
 class QuantityValidationTests(WorkflowTestBase):
@@ -119,7 +119,7 @@ class FullPipelineTests(WorkflowTestBase):
         self.seed_forming_wip("480")
 
         forming = self.make_forming(input_qty="480", output_qty="460", rejection_qty="15")
-        prod_services.complete_stage(forming, self.admin, current_stage="forming")
+        prod_services.complete_stage(forming, self.admin)
         self.lot.refresh_from_db()
         self.assertEqual(self.lot.current_stage, "heat_treatment")
         self.assertEqual(WIPStock.objects.get(stage="heat_treatment", lot=self.lot).quantity, Decimal("460"))
@@ -130,7 +130,7 @@ class FullPipelineTests(WorkflowTestBase):
             start_time=timezone.now(), input_quantity=Decimal("460"), output_quantity=Decimal("440"),
             rejection_quantity=Decimal("15"), status="in_progress", created_by=self.admin, updated_by=self.admin,
         )
-        prod_services.complete_stage(heat_treat, self.admin, current_stage="heat_treatment")
+        prod_services.complete_stage(heat_treat, self.admin)
         self.lot.refresh_from_db()
         self.assertEqual(self.lot.current_stage, "finishing")
 
@@ -139,7 +139,7 @@ class FullPipelineTests(WorkflowTestBase):
             start_time=timezone.now(), input_quantity=Decimal("440"), output_quantity=Decimal("420"),
             rejection_quantity=Decimal("15"), status="in_progress", created_by=self.admin, updated_by=self.admin,
         )
-        prod_services.complete_stage(finishing, self.admin, current_stage="finishing")
+        prod_services.complete_stage(finishing, self.admin)
         self.lot.refresh_from_db()
         self.assertEqual(self.lot.current_stage, "finished_goods")
 
@@ -167,7 +167,7 @@ class FullPipelineTests(WorkflowTestBase):
         self.seed_forming_wip("100")
         forming = self.make_forming(input_qty="500", output_qty="480", rejection_qty="15")
         with self.assertRaises(ValidationError):
-            prod_services.complete_stage(forming, self.admin, current_stage="forming")
+            prod_services.complete_stage(forming, self.admin)
 
     def test_finished_goods_requires_quality_approval_to_be_available(self):
         fg_stock = FinishedGoodsStock(

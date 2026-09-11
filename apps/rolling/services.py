@@ -2,20 +2,25 @@ from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.utils import timezone
 
 from apps.audit.models import log_action
 from apps.masters import services as masters_services
 from apps.masters.models import CoilMaster, DiameterTravellerMapping
+from apps.production import services as production_services
+from apps.production.process_registry import get_process
 
 from .models import RollingBatch, RollingBatchCoil
 
 
-def _stage_rolling_output_for_forming(batch, user):
-    """Bridge P1 -> P2: a completed Rolling batch automatically becomes
-    available material in the Forming main table, via a ProductionLot +
-    WIP stock entry the existing Forming pipeline already consumes."""
-    from apps.inventory import services as inventory_services
+def _create_carrier_lot(batch):
+    """Every batch gets its ProductionLot at initiation, not at completion,
+    so the carrier the next process initiates against exists for the whole
+    life of the batch. The lot sits at the Rolling process until Rolling
+    hands it over.
+
+    ProductionLot still requires a ProductionOrder FK, so a placeholder
+    order is created alongside it; nothing in the Rover process reads it.
+    """
     from apps.master_data.models import MaterialMaster, ProductMaster, UnitOfMeasure
     from apps.production.models import ProductionLot, ProductionOrder
 
@@ -29,18 +34,14 @@ def _stage_rolling_output_for_forming(batch, user):
         defaults={"name": "Rolled Wire", "unit_of_measure": uom, "raw_material": material},
     )
     order = ProductionOrder.objects.create(
-        product=product, planned_quantity=batch.finished_weight_kg, uom="KG", status="in_progress",
+        product=product, planned_quantity=batch.wire_weight_issued_kg, uom="KG", status="in_progress",
         remarks=f"Auto-created from Rolling batch {batch.wire_serial}",
     )
-    lot = ProductionLot.objects.create(
-        production_order=order, current_stage="forming", quantity=batch.finished_weight_kg,
-        source_rolling_batch=batch, remarks=f"Wire serial {batch.wire_serial}",
+    return ProductionLot.objects.create(
+        production_order=order, current_stage=get_process("rolling").slug,
+        quantity=batch.wire_weight_issued_kg, source_rolling_batch=batch,
+        remarks=f"Wire serial {batch.wire_serial}",
     )
-    inventory_services.add_wip(
-        "forming", lot, batch.finished_weight_kg, source_operation=batch, user=user,
-        remarks=f"Rolling {batch.wire_serial} completed, staged for Forming",
-    )
-    return lot
 
 
 @transaction.atomic
@@ -86,6 +87,7 @@ def initiate_rolling_batch(*, traveller_type, traveller_no, finish, required_box
     )
     batch.full_clean()
     batch.save()
+    _create_carrier_lot(batch)
 
     for coil_id, weight_taken in coil_weights:
         coil = CoilMaster.objects.select_for_update().get(pk=coil_id)
@@ -112,22 +114,14 @@ def complete_rolling_batch(batch, *, rolled_thickness_mm, rolled_width_mm, finis
     if batch.status == "Completed":
         raise ValidationError("This batch has already been completed.")
     if finished_weight_kg > batch.wire_weight_issued_kg:
-        raise ValidationError("Finished weight cannot exceed the wire weight issued.")
+        raise ValidationError("Output weight cannot exceed the wire weight issued.")
 
     batch.rolled_thickness_mm = rolled_thickness_mm
     batch.rolled_width_mm = rolled_width_mm
     batch.finished_weight_kg = finished_weight_kg
-    batch.wastage_kg = batch.wire_weight_issued_kg - finished_weight_kg
-    batch.status = "Completed"
-    batch.completed_at = timezone.now()
-    batch.full_clean()
-    batch.save()
 
-    _stage_rolling_output_for_forming(batch, user)
-
-    log_action(
-        user, "complete", batch,
-        description=f"Rolling batch {batch.wire_serial} completed",
-        metadata={"wastage_kg": str(batch.wastage_kg)},
-    )
+    # `handover` stamps the status, completion time and wastage, stages the
+    # output as WIP for whichever process follows Rolling in the registry
+    # and moves the carrier lot onto it.
+    production_services.handover(batch, get_process("rolling"), user)
     return batch

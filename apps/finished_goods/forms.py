@@ -5,7 +5,9 @@ from apps.production.models import ProductionLot
 
 
 class FinishedGoodsReceiveForm(forms.Form):
-    lot = forms.ModelChoiceField(queryset=ProductionLot.objects.filter(current_stage="finished_goods"))
+    # Fixed by the incoming row the operator came from; the view validates
+    # it against the set of lots actually waiting here.
+    lot = forms.ModelChoiceField(queryset=ProductionLot.objects.all(), widget=forms.HiddenInput)
     product = forms.ModelChoiceField(queryset=None)
     accepted_quantity = forms.DecimalField(max_digits=14, decimal_places=3, min_value=0)
     rejected_quantity = forms.DecimalField(max_digits=14, decimal_places=3, min_value=0, initial=0)
@@ -19,9 +21,6 @@ class FinishedGoodsReceiveForm(forms.Form):
         super().__init__(*args, **kwargs)
         from apps.master_data.models import Location, ProductMaster, Rack, Shelf, Tray
 
-        self.fields["lot"].label_from_instance = lambda lot: (
-            f"{lot.wire_serial or lot.lot_number} - Traveller {lot.traveller_no} ({lot.quantity} kg)"
-        )
         self.fields["product"].queryset = ProductMaster.active.all()
         self.fields["location"].queryset = Location.active.filter(location_type="fg")
         self.fields["rack"].queryset = Rack.active.all()

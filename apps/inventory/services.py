@@ -9,12 +9,27 @@ from .models import RawMaterialStock, StockTransaction, WIPStock
 
 
 def _default_location(stage: str) -> Location:
+    """The WIP ledger is a guard behind the process screens, so it must not
+    be able to block a completion on a database that was seeded with
+    `seed_masters` alone. If no Location master rows exist, a single
+    internal default is created rather than raising."""
     location_type = {"raw_material": "store", "finished_goods": "fg"}.get(stage, "wip")
     location = Location.active.filter(location_type=location_type).first()
     if location is None:
         location = Location.active.first()
     if location is None:
-        raise ValidationError("No location master data configured.")
+        location = _create_default_location(location_type)
+    return location
+
+
+def _create_default_location(location_type: str) -> Location:
+    from apps.master_data.models import Plant
+
+    plant = Plant.active.first() or Plant.objects.create(code="PLANT", name="Plant")
+    location, _ = Location.objects.get_or_create(
+        plant=plant, code="DEFAULT",
+        defaults={"name": "Default Stock Location", "location_type": location_type},
+    )
     return location
 
 

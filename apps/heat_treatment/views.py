@@ -13,8 +13,8 @@ class HeatTreatmentCreateView(StageCreateView):
     list_url_name = "heat_treatment:list"
     complete_url_name = "heat_treatment:complete"
     checklist = [
-        "Select the completed Forming lot and enter TT, T No, Batch No",
-        "Pick the date and Surface Finish - Finished Weight is auto-filled",
+        "Select the completed Forming lot and enter the Batch No",
+        "Pick the date and Surface Finish - Received Weight is auto-filled",
         "Initiating creates the transaction; enter the finished weight on the Complete screen",
         "Completing the transaction stages the output for Finishing",
     ]
@@ -35,6 +35,3 @@ class HeatTreatmentCompleteView(StageCompleteView):
     page_title = "Heat Treatment"
     detail_url_name = "heat_treatment:detail"
     list_url_name = "heat_treatment:list"
-
-    def get_kwargs(self, operation, request):
-        return {"current_stage": "heat_treatment"}
