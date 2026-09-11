@@ -103,13 +103,19 @@ Master data and process history are loaded by two separate commands, in this
 order:
 
 ```bash
-python manage.py seed_masters                  # master data only, safe to re-run
-python manage.py seed_process_history --reset  # first time: clear and generate
-python manage.py seed_process_history --extend # daily: add only the new dates
+# 1. Master data only, safe to re-run.
+python manage.py seed_masters
+
+# 2. First time: clear any process data and generate the full history.
+python manage.py seed_process_history --reset --from 2026-04-01 --provisional-mappings
+
+# 3. Daily: add only the dates that are missing, touching no existing row.
+python manage.py seed_process_history --extend
 ```
 
 `seed_masters` loads the official Traveller Type, Traveller No, Surface Finish,
-Diameter and Wire Serial masters. It creates no process records.
+Diameter and Wire Serial masters, plus the rack and machine masters the process
+screens read. It creates no process records.
 
 `seed_process_history` generates a realistic history from 1 April 2026 to today
 — one batch per traveller type and beyond, at every stage of the pipeline, with
@@ -120,13 +126,25 @@ works end to end. How far each batch has got depends on how old it is, so every
 Main Table shows both incoming and in-progress rows and every Complete Table has
 history. `--extend` re-runs cheaply each day without touching existing rows.
 
-If any traveller type has no `DiameterTravellerMapping`, the generator invents a
-**provisional** one and prints a loud warning. Replace those with the real values
-as soon as you have them:
+Master data is read, never invented. Every traveller type, traveller number,
+surface finish, diameter, rack, machine and wire serial comes out of the master
+tables at run time; if one a step needs is empty, the command names the missing
+row and stops before writing anything.
+
+The one exception is the known gap: traveller types with no
+`DiameterTravellerMapping` cannot be rolled at all. Without
+`--provisional-mappings` the command lists them and exits; with it, it creates a
+guess for the unmapped ones only (diameter chosen positionally from the diameter
+master, F-Thickness = dia x 0.44, F-Width = dia x 1.90), prints every one of them
+as a warning block, and never overwrites a real mapping. Replace them with the
+business's real values as soon as you have them:
 
 ```bash
 python manage.py import_traveller_mappings mappings.csv   # seq_no,diameter_mm,f_thickness_mm,f_width_mm
 ```
+
+The rack and machine rows `seed_masters` loads are provisional in the same sense
+— replace them with the real masters when the business supplies them.
 
 ### Upgrading a database created before the handover chain
 

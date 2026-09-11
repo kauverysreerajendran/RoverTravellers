@@ -9,6 +9,7 @@ from apps.masters.models import (
     CoilMaster,
     DiameterMaster,
     DiameterTravellerMapping,
+    Machine,
     RackMaster,
     SurfaceFinish,
     TravellerNo,
@@ -25,6 +26,15 @@ WIRE_SERIALS_PER_PREFIX = 1000
 CURRENT_WIRE_SERIAL = ("SB", 110)
 
 SURFACE_FINISHES = ["Indigo", "Endura", "Plain/Polish", "Nickel +", "NMAX"]
+
+# Provisional coil-storage bay and machine master. Both are real master
+# tables the shop floor will own; until the business supplies them, a
+# small set is seeded here so that the process screens and the history
+# generator have master rows to read rather than invent.
+RACK_COUNT = 6
+MACHINE_SUFFIXES = ["A", "B"]
+# Machine.STAGE_CHOICES carries a catch-all that is not a process.
+GENERIC_MACHINE_STAGE = "general"
 
 # Official Traveller Type Master. Row 17 and 63 both read "RE2 UDR" in the
 # source document - kept as-is; seq_no is the real business key.
@@ -85,6 +95,8 @@ class Command(BaseCommand):
         self._seed_diameters()
         self._seed_surface_finish()
         self._seed_traveller_numbers()
+        self._seed_racks()
+        self._seed_machines()
         self._seed_confirmed_mapping()
         self._seed_wire_serials()
         self._seed_sample_rack_and_coils()
@@ -130,6 +142,50 @@ class Command(BaseCommand):
             code = str(n)
             TravellerNo.objects.get_or_create(code=code, defaults={"label": code})
         self.stdout.write(f"  Traveller numbers: {TravellerNo.objects.count()} rows")
+
+    def _seed_racks(self):
+        """Coil storage racks. The Raw Material Master Design (Phase 1)
+        document names only R1; the rest are a small provisional bay so
+        that anything distributing coils across racks has more than one
+        to choose from. Replace with the real rack master when it exists."""
+        for number in range(1, RACK_COUNT + 1):
+            RackMaster.objects.get_or_create(rack_code=f"R{number}", defaults={"capacity": 10})
+        self.stdout.write(
+            f"  Racks: {RackMaster.objects.count()} rows (R1 from the Phase 1 document, "
+            f"R2-R{RACK_COUNT} provisional)"
+        )
+
+    def _seed_machines(self):
+        """Machines are master data that the process screens read (Forming
+        and Finishing record one on their Initiate screen), so they belong
+        here rather than being invented by the history generator - which
+        refuses to create master data and stops instead.
+
+        The stage list comes from Machine.STAGE_CHOICES, so a stage added
+        to the model is seeded without editing this command. These are
+        PROVISIONAL: replace them with the real machine master.
+        """
+        from apps.master_data.models import Plant
+
+        plant = Plant.active.first() or Plant.objects.get_or_create(
+            code="PLANT", defaults={"name": "Plant"}
+        )[0]
+        created = []
+        for stage, label in Machine.STAGE_CHOICES:
+            if stage == GENERIC_MACHINE_STAGE:
+                continue
+            for suffix in MACHINE_SUFFIXES:
+                code = f"{stage.upper()}-{suffix}"
+                _, was_created = Machine.objects.get_or_create(
+                    code=code,
+                    defaults={"name": f"{label} {suffix}", "stage": stage, "plant": plant},
+                )
+                if was_created:
+                    created.append(code)
+        self.stdout.write(
+            f"  Machines: {Machine.objects.count()} rows ({len(created)} created now) - "
+            "PROVISIONAL, replace with the real machine master"
+        )
 
     def _seed_confirmed_mapping(self):
         traveller_type = TravellerType.objects.get(seq_no=1)  # U1UM UDR, confirmed == "U1"

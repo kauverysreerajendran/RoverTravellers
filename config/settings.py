@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -83,11 +84,13 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-# Managed hosts (Render, Heroku, ...) expose a single DATABASE_URL; fall back to
-# the discrete DB_* variables used for local development and docker-compose.
-if env("DATABASE_URL", default=""):
-    DATABASES = {"default": env.db("DATABASE_URL")}
-    DATABASES["default"].setdefault("CONN_MAX_AGE", 600)
+# Render provides DATABASE_URL. Locally (no DATABASE_URL), the DB_* variables are used.
+# Strip stray spaces/quotes so a badly pasted value doesn't break the config.
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
+
+if DATABASE_URL:
+    DATABASES = {"default": environ.Env.db_url_config(DATABASE_URL)}
+    DATABASES["default"]["CONN_MAX_AGE"] = 600
 else:
     DATABASES = {
         "default": {
