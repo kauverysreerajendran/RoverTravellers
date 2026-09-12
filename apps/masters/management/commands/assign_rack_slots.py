@@ -35,11 +35,21 @@ class Command(BaseCommand):
             if not zones.exists():
                 raise CommandError(f'No active rack zone with code "{options["zone"]}".')
 
-        for zone in zones:
-            self._assign(zone)
+        # A zone that runs out of space does not hide the others: each is
+        # reported, and the command fails at the end so the operator cannot
+        # miss that some material is still off-rack.
+        full = [zone for zone in zones if not self._assign(zone)]
+        if full:
+            raise CommandError(
+                "Out of space: " + ", ".join(zone.name for zone in full)
+                + ". Add racks to the zone (or free slots) and run again; "
+                "everything that fitted has been placed."
+            )
 
     # ------------------------------------------------------------------
     def _assign(self, zone):
+        """Place what belongs on `zone`. Returns False when the zone ran out
+        of space, having placed everything that fitted."""
         process = zone.process
         if process is None:
             raise CommandError(
@@ -48,6 +58,7 @@ class Command(BaseCommand):
 
         records = self._waiting_records(process)
         placed = already = skipped = 0
+        ran_out = ""
         for record in records:
             lot = record.handover_lot
             if lot is None:
@@ -59,19 +70,25 @@ class Command(BaseCommand):
             try:
                 slot = rack_services.place_lot(zone, lot, None)
             except ValidationError as exc:
-                raise CommandError(
-                    f"{zone.name} ran out of space after placing {placed} of {len(records)}: "
-                    f"{'; '.join(exc.messages)}. Add racks to the zone, or free slots, and run again."
-                )
+                ran_out = "; ".join(exc.messages)
+                break
             placed += 1
             self.stdout.write(f"  {slot.label}  <-  {record.wire_serial or lot.lot_number}")
 
         summary = rack_services.zone_summary(zone)
-        self.stdout.write(self.style.SUCCESS(
+        line = (
             f"{zone.name}: {placed} placed, {already} already on a slot"
             + (f", {skipped} without a traceable lot" if skipped else "")
             + f" | {summary['occupied']} / {summary['total_slots']} slots occupied"
-        ))
+        )
+        if ran_out:
+            waiting = len(records) - placed - already - skipped
+            self.stdout.write(self.style.WARNING(
+                f"{line} | {ran_out}: {waiting} of {len(records)} could not be placed"
+            ))
+            return False
+        self.stdout.write(self.style.SUCCESS(line))
+        return True
 
     @staticmethod
     def _waiting_records(process):
