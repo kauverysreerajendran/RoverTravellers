@@ -527,6 +527,15 @@ a { color: var(--rover-red); }
 .slot.is-picked { background: var(--rover-red-tint); border: 1px solid var(--rover-red); color: var(--rover-red); border-style: solid; }
 .slot-picker-racks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .75rem; max-height: 420px; overflow-y: auto; }
 
+/* Rack tab strip with this screen's own locate search beside it. */
+.rack-toolbar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.rack-search { margin-left: auto; flex: 1 1 260px; max-width: 460px; }
+.slot-empty.is-match { border-style: solid; border-color: var(--rover-success); color: var(--rover-success); }
+.slot-empty.is-dim { opacity: .35; }
+.pill.is-match { background: var(--rover-red-tint); color: var(--rover-red); }
+.pill.is-dim { opacity: .35; }
+@media (max-width: 640px) { .rack-search { margin-left: 0; max-width: none; } }
+
 /* Product credit, on the login page and at the foot of every screen. */
 .app-credit { margin-top: 1.75rem; text-align: center; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--rover-muted); }
 

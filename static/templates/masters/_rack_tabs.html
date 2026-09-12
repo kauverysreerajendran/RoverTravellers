@@ -1,13 +1,99 @@
 {% comment %}
-In-page switch between the racks: the raw-material coil bay first, then one
-tab per active storage zone (Forming, Finished Goods). The tabs come from
-`rack_tabs()` in apps/masters/views.py, so a zone added to the database
-appears here without a template change.
+The Rack screen's tab strip - the raw-material coil bay first, then one tab
+per active storage zone (Forming, Finished Goods) - with this screen's own
+locate search beside it. The tabs come from `rack_tabs()` in
+apps/masters/views.py, so a zone added to the database appears here without
+a template change.
+
+The search is client-side on purpose: every rack, slot and coil on the page
+is already rendered, so locating one is a filter over what is on screen
+rather than a round trip. It matches anything a slot carries in
+`data-search` and any rack code, and works the same on both screens.
 {% endcomment %}
-<div class="process-tabs mb-3">
-  {% for tab in rack_tabs %}
-  <a href="{{ tab.url }}" class="process-tab{% if tab.active %} active{% endif %}">
-    <i class="bi bi-grid-3x3-gap"></i> {{ tab.label }}
-  </a>
-  {% endfor %}
+<div class="rack-toolbar">
+  <div class="process-tabs">
+    {% for tab in rack_tabs %}
+    <a href="{{ tab.url }}" class="process-tab{% if tab.active %} active{% endif %}">
+      <i class="bi bi-grid-3x3-gap"></i> {{ tab.label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <label class="search-box rack-search">
+    <i class="bi bi-search"></i>
+    <input type="search" id="rackSearch"
+           placeholder="{{ rack_search_placeholder|default:'Locate on this rack...' }}"
+           autocomplete="off">
+  </label>
 </div>
+
+<div class="locate-results" id="locateResults" hidden></div>
+
+<script>
+(function () {
+  var input = document.getElementById("rackSearch");
+  var results = document.getElementById("locateResults");
+  if (!input || !results) { return; }
+
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".rack-card"));
+  var loose = Array.prototype.slice.call(document.querySelectorAll(".locatable[data-search]"));
+
+  function reset() {
+    document.querySelectorAll("[data-search]").forEach(function (el) {
+      el.classList.remove("is-match", "is-dim");
+    });
+    cards.forEach(function (card) { card.classList.remove("is-match"); card.hidden = false; });
+  }
+
+  function hit(el) {
+    return { label: el.getAttribute("data-label") || "", where: el.getAttribute("data-where") || "" };
+  }
+
+  function locate() {
+    var needle = input.value.trim().toLowerCase();
+    var hits = [];
+    reset();
+
+    if (!needle) { results.hidden = true; results.innerHTML = ""; return; }
+
+    cards.forEach(function (card) {
+      var rackMatch = (card.getAttribute("data-rack") || "").indexOf(needle) !== -1;
+      var anySlot = false;
+      card.querySelectorAll("[data-search]").forEach(function (slot) {
+        if (slot.getAttribute("data-search").indexOf(needle) !== -1) {
+          anySlot = true;
+          slot.classList.add("is-match");
+          hits.push(hit(slot));
+        } else if (!rackMatch) {
+          slot.classList.add("is-dim");
+        }
+      });
+      card.classList.toggle("is-match", rackMatch || anySlot);
+      card.hidden = !(rackMatch || anySlot);
+    });
+
+    // Anything locatable that lives outside a rack card (unracked coils).
+    loose.forEach(function (el) {
+      if (el.getAttribute("data-search").indexOf(needle) !== -1) {
+        el.classList.add("is-match");
+        hits.push(hit(el));
+      } else {
+        el.classList.add("is-dim");
+      }
+    });
+
+    results.hidden = false;
+    if (!hits.length) {
+      results.innerHTML = '<div class="text-muted"><i class="bi bi-search me-1"></i> Nothing matches "'
+        + input.value.trim() + '" on this rack.</div>';
+      return;
+    }
+    results.innerHTML = hits.map(function (h) {
+      return '<div class="hit"><i class="bi bi-geo-alt-fill"></i><span>' + h.label
+        + '</span><span class="to"><i class="bi bi-arrow-right me-1"></i>' + h.where + '</span></div>';
+    }).join("");
+  }
+
+  input.addEventListener("input", locate);
+})();
+</script>

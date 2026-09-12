@@ -306,6 +306,26 @@ class RackScreenTests(SeededZoneTestBase):
         self.assertContains(response, self.coil.rack.rack_code)
         self.assertContains(response, f"Coil {self.coil.coil_display_number}")
 
+    def test_every_rack_screen_carries_its_own_locate_search(self):
+        """The search lives beside the tabs, on both the coil bay and every
+        zone, and each locatable thing on the page declares what it matches
+        - without `data-search` the box would filter nothing."""
+        urls = [reverse("masters:rack_locator")] + [
+            reverse("masters:rack_zone", kwargs={"code": zone.code})
+            for zone in RackZone.objects.filter(is_active=True)
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertContains(response, 'id="rackSearch"')
+                self.assertContains(response, 'id="locateResults"')
+                self.assertContains(response, "data-search=")
+
+    def test_no_screen_carries_a_global_search_in_the_header(self):
+        for url in (reverse("masters:rack_locator"), reverse("dashboard:overview")):
+            with self.subTest(url=url):
+                self.assertNotContains(self.client.get(url), 'class="header-search')
+
     def test_every_zone_has_a_tab_and_a_page_of_empty_slots(self):
         for zone in RackZone.objects.filter(is_active=True):
             with self.subTest(zone=zone.code):

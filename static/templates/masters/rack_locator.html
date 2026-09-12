@@ -4,8 +4,6 @@
 
 {% include "masters/_rack_tabs.html" %}
 
-{% comment %}Locating a coil is the header scan's job now, so this screen
-carries no search box of its own.{% endcomment %}
 <div class="toolbar">
   <div class="stat-chips ms-auto">
     <span class="stat-chip">Racks<strong>{{ total_racks }}</strong></span>
@@ -26,7 +24,10 @@ carries no search box of its own.{% endcomment %}
     <div class="rack-bar"><span style="width:{{ r.pct }}%"></span></div>
     <div class="slot-grid">
       {% for c in r.coils %}
-        <div class="slot slot-filled">
+        <div class="slot slot-filled"
+             data-search="coil {{ c.coil_display_number }} coil{{ c.coil_display_number }} {{ c.raw_material_id|lower }} {{ c.raw_material.diameter_mm }}mm"
+             data-label="Coil {{ c.coil_display_number }} · {{ c.raw_material_id }} · {{ c.raw_material.diameter_mm }} mm · {{ c.weight_kg }} kg"
+             data-where="Rack {{ r.rack.rack_code }}">
           <div class="slot-title">Coil {{ c.coil_display_number }}</div>
           <div class="slot-sub">{{ c.raw_material.diameter_mm }} mm · {{ c.weight_kg }} kg</div>
           <div class="slot-id">{{ c.raw_material_id }}</div>
@@ -51,7 +52,10 @@ carries no search box of its own.{% endcomment %}
   </div>
   <div class="d-flex flex-wrap gap-2">
     {% for c in unracked %}
-      <span class="pill pill-neutral">
+      <span class="pill pill-neutral locatable"
+            data-search="coil {{ c.coil_display_number }} coil{{ c.coil_display_number }} {{ c.raw_material_id|lower }} {{ c.raw_material.diameter_mm }}mm"
+            data-label="Coil {{ c.coil_display_number }} · {{ c.raw_material_id }} · {{ c.weight_kg }} kg"
+            data-where="Not on a rack">
         Coil {{ c.coil_display_number }} · {{ c.raw_material_id }} · {{ c.weight_kg }} kg
       </span>
     {% endfor %}

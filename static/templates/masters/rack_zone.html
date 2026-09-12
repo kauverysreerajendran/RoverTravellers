@@ -4,8 +4,6 @@
 
 {% include "masters/_rack_tabs.html" %}
 
-{% comment %}Locating material is the header scan's job now, so this screen
-carries no search box of its own.{% endcomment %}
 <div class="toolbar">
   <div class="stat-chips ms-auto">
     <span class="stat-chip">Racks<strong>{{ total_racks }}</strong></span>
@@ -18,7 +16,7 @@ carries no search box of its own.{% endcomment %}
 {% if racks %}
 <div class="rack-grid">
   {% for r in racks %}
-  <div class="rack-card">
+  <div class="rack-card" data-rack="{{ r.rack.code|lower }}">
     <div class="rack-head">
       <div><i class="bi bi-grid-3x3-gap"></i><strong>{{ r.rack.code }}</strong></div>
       <span class="pill {% if r.empty == 0 %}pill-pending{% else %}pill-neutral{% endif %}">{{ r.occupied }} / {{ r.capacity }}</span>
@@ -32,9 +30,15 @@ carries no search box of its own.{% endcomment %}
         <div class="slot-axis">{{ row.letter }}</div>
         {% for cell in row.cells %}
           {% if cell.empty %}
-            <div class="slot slot-empty">{{ cell.label }}</div>
+            <div class="slot slot-empty"
+                 data-search="{{ cell.label|lower }} empty"
+                 data-label="{{ cell.label }} - empty"
+                 data-where="Free space">{{ cell.label }}</div>
           {% else %}
-            <div class="slot slot-filled" id="slot-{{ cell.label }}">
+            <div class="slot slot-filled" id="slot-{{ cell.label }}"
+                 data-search="{{ cell.wire_serial|lower }} {{ cell.traveller_type|lower }} {{ cell.label|lower }}"
+                 data-label="{{ cell.wire_serial }} · {{ cell.traveller_type }}{% if cell.weight %} · {{ cell.weight }} kg{% endif %}"
+                 data-where="Slot {{ cell.label }}">
               <div class="slot-title">{{ cell.wire_serial|default:"-" }}</div>
               <div class="slot-sub">{{ cell.traveller_type|default:"-" }}</div>
               <div class="slot-id">{{ cell.label }}{% if cell.weight %} · {{ cell.weight }} kg{% endif %}</div>

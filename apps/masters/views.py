@@ -64,6 +64,7 @@ class RackLocatorView(LoginRequiredMixin, TemplateView):
 
         ctx.update({
             "rack_tabs": rack_tabs(),
+            "rack_search_placeholder": "Locate: coil no, diameter (0.93), raw material id (RM-093) or rack code...",
             "page_title": "Rack",
             "page_subtitle": "Locate coils and find empty rack space",
             "page_icon": "bi-grid-3x3-gap",
@@ -90,6 +91,7 @@ class RackZoneView(LoginRequiredMixin, TemplateView):
         ctx.update(summary)
         ctx.update({
             "rack_tabs": rack_tabs(zone.code),
+            "rack_search_placeholder": "Locate: wire serial, traveller type or slot (FR-01-A1)...",
             "page_title": "Rack",
             "page_subtitle": f"{zone.name} - locate material and find empty slots",
             "page_icon": "bi-grid-3x3-gap",
