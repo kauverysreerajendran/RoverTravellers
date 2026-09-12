@@ -4,6 +4,8 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+from apps.heat_treatment import views as heat_treatment_views
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", RedirectView.as_view(pattern_name="dashboard:overview", permanent=False)),
@@ -18,6 +20,9 @@ urlpatterns = [
     path("rolling/", include("apps.rolling.urls")),
     path("forming/", include("apps.forming.urls")),
     path("heat-treatment/", include("apps.heat_treatment.urls")),
+    # What a printed QR label resolves to. Top-level and short, because it
+    # is typed into a phone camera, not clicked.
+    path("scan/<str:token>/", heat_treatment_views.scan, name="scan"),
     path("finishing/", include("apps.finishing.urls")),
     path("finished-goods/", include("apps.finished_goods.urls")),
     path("inventory/", include("apps.inventory.urls")),

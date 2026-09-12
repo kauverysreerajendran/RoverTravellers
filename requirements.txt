@@ -6,3 +6,7 @@ gunicorn==22.0.0
 whitenoise==6.7.0
 django-filter==24.3
 django-cors-headers==4.4.0
+# Heat batch labels: the QR a phone camera opens, and an optional
+# Code128 for hand-held laser scanners (BATCH_LABEL_CODE128).
+qrcode==8.0
+python-barcode==0.15.1

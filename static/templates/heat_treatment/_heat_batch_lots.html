@@ -1,0 +1,54 @@
+{% comment %}
+What is in the furnace load, and where each lot has got to since. Each lot
+keeps its own transaction, so each hands over to the next process on its
+own; this table is the load seen whole.
+{% endcomment %}
+<div class="section-card">
+  <div class="section-head">
+    <div class="section-title">
+      <h6>Lots in this batch</h6>
+      <p>Wire serials that went into the furnace together</p>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-rover align-middle">
+      <thead>
+        <tr>
+          <th class="col-sno">S.No</th>
+          <th>Wire Serial</th>
+          <th>Traveller Type</th>
+          <th>Traveller No</th>
+          <th>Surface Finish</th>
+          <th class="text-end">Received (kg)</th>
+          <th class="text-end">Output (kg)</th>
+          <th>Status</th>
+          <th>Now At</th>
+          <th>Rack Slot</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td class="col-sno">{{ forloop.counter }}</td>
+          <td class="fw-semibold">{{ row.transaction.wire_serial|default:"-" }}</td>
+          <td>{{ row.transaction.traveller_type.name|default:"-" }}</td>
+          <td>{{ row.transaction.traveller_no.code|default:"-" }}</td>
+          <td>{{ row.transaction.surface_finish.finish_name|default:"-" }}</td>
+          <td class="text-end num">{{ row.transaction.received_weight|default_if_none:"-" }}</td>
+          <td class="text-end num">{{ row.transaction.output_weight|default_if_none:"-" }}</td>
+          <td><span class="badge badge-status-{{ row.transaction.status }}">{{ row.transaction.get_status_display }}</span></td>
+          <td>{{ row.current_process }}</td>
+          <td>{{ row.rack_slot|default:"-" }}</td>
+          <td class="text-end">
+            <a href="{% url 'heat_treatment:detail' row.transaction.pk %}" class="btn btn-sm btn-outline-secondary">View</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="11" class="text-center text-muted py-4">No lots in this batch yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

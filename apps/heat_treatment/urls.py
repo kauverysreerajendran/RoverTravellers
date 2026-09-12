@@ -13,4 +13,8 @@ urlpatterns = [
     path("create/", views.HeatTreatmentCreateView.as_view(), name="create"),
     path("<uuid:pk>/", views.HeatTreatmentDetailView.as_view(), name="detail"),
     path("<uuid:pk>/complete/", views.HeatTreatmentCompleteView.as_view(), name="complete"),
+    # The furnace load: its page, its printable label and its QR.
+    path("batches/<str:batch_no>/", views.HeatBatchDetailView.as_view(), name="batch_detail"),
+    path("batches/<str:batch_no>/label/", views.HeatBatchLabelView.as_view(), name="batch_label"),
+    path("batches/<str:batch_no>/qr.svg", views.HeatBatchQrView.as_view(), name="batch_qr"),
 ]

@@ -13,9 +13,19 @@ SECRET_KEY = env("SECRET_KEY", default="insecure-dev-key")
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost",  "pauper-keenness-concave.ngrok-free.dev",])
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://pauper-keenness-concave.ngrok-free.dev",
-]
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS", default=["https://pauper-keenness-concave.ngrok-free.dev"]
+)
+
+# Where a phone that scans a printed label should come back to. Set it to
+# the LAN address the shop floor reaches (http://<PC-IP>:8000) or to the
+# deployed hostname; left empty, a QR falls back to the host the page was
+# served from, which is fine for a laptop and useless on a phone.
+SITE_BASE_URL = env("SITE_BASE_URL", default="")
+
+# Print a Code128 of the batch number under the QR, for hand-held laser
+# scanners that cannot read a 2D code.
+BATCH_LABEL_CODE128 = env.bool("BATCH_LABEL_CODE128", default=False)
 
 # Render injects the public hostname of the service at runtime.
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")

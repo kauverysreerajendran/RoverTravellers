@@ -1,0 +1,62 @@
+{% comment %}
+The printable label: one A7 card carrying the QR a phone camera opens, the
+batch number a person reads, and enough of the load to identify it on the
+floor. It prints on its own - no sidebar, no header - and sends itself to
+the print dialog when opened.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ batch.batch_no }} label</title>
+  <style>
+    @page { size: 74mm 105mm; margin: 4mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: #111; }
+    .label { width: 66mm; padding: 3mm; margin: 4mm auto; border: 1px solid #111; border-radius: 2mm; }
+    .label-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #111; padding-bottom: 1.5mm; }
+    .label-head strong { font-size: 5mm; letter-spacing: .02em; }
+    .label-head span { font-size: 2.6mm; text-transform: uppercase; letter-spacing: .08em; }
+    .qr { width: 40mm; height: 40mm; margin: 3mm auto 1mm; }
+    .qr svg { width: 100%; height: 100%; }
+    .code128 { width: 56mm; margin: 0 auto 2mm; }
+    .code128 svg { width: 100%; height: 14mm; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: .8mm 2mm; margin: 0; font-size: 2.8mm; }
+    dt { color: #555; }
+    dd { margin: 0; font-weight: 600; word-break: break-word; }
+    .url { margin-top: 2mm; font-size: 2.2mm; color: #555; word-break: break-all; text-align: center; }
+    .noprint { text-align: center; margin: 3mm 0; }
+    @media print { .noprint { display: none; } .label { margin: 0; border: none; } }
+  </style>
+</head>
+<body>
+  <div class="label">
+    <div class="label-head">
+      <strong>{{ batch.batch_no }}</strong>
+      <span>Heat Batch</span>
+    </div>
+
+    <div class="qr">{{ qr_svg|safe }}</div>
+    {% if code128 %}<div class="code128">{{ code128|safe }}</div>{% endif %}
+
+    <dl>
+      <dt>Date</dt><dd>{{ batch.created_at|date:"d M Y" }}</dd>
+      <dt>Traveller</dt>
+      <dd>{% for t in batch.traveller_types %}{{ t.name }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</dd>
+      <dt>Wire Serials</dt>
+      <dd>{% for serial in batch.wire_serials %}{{ serial }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</dd>
+      <dt>Received</dt><dd>{{ batch.received_weight_total }} kg</dd>
+    </dl>
+
+    <div class="url">{{ scan_url }}</div>
+  </div>
+
+  <div class="noprint">
+    <button type="button" onclick="window.print()">Print</button>
+    <a href="{% url 'heat_treatment:batch_detail' batch.batch_no %}">Back to batch</a>
+  </div>
+
+  <script>window.addEventListener("load", function () { window.print(); });</script>
+</body>
+</html>

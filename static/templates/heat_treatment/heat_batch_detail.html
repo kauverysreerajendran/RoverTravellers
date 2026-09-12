@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+
+<div class="section-card">
+  <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+    <div class="d-flex align-items-center gap-3">
+      <a href="{% url 'heat_treatment:batch_label' batch.batch_no %}" class="batch-qr" title="Print label" target="_blank">
+        <img src="{% url 'heat_treatment:batch_qr' batch.batch_no %}" alt="QR for {{ batch.batch_no }}">
+      </a>
+      <div>
+        <div class="detail-label small text-uppercase text-muted" style="letter-spacing:.06em">Heat Batch</div>
+        <div class="fs-3 fw-bold">{{ batch.batch_no }}</div>
+        <span class="pill {% if batch.status == 'completed' %}pill-completed{% else %}pill-inprogress{% endif %}">
+          {{ batch.get_status_display }}
+        </span>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-4 small text-muted">
+      <div><i class="bi bi-calendar3 me-1"></i> Created {{ batch.created_at|date:"d M Y, H:i" }}{% if batch.created_by %} · {{ batch.created_by.get_full_name|default:batch.created_by.username }}{% endif %}</div>
+      {% if batch.completed_at %}<div><i class="bi bi-check2-circle me-1 text-success"></i> Completed {{ batch.completed_at|date:"d M Y, H:i" }}</div>{% endif %}
+      <div><i class="bi bi-link-45deg me-1"></i> {{ scan_url }}</div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <a href="{% url 'heat_treatment:batch_label' batch.batch_no %}" class="btn btn-outline-secondary btn-sm" target="_blank">
+        <i class="bi bi-printer me-1"></i> Print label
+      </a>
+      <a href="{% url 'process:main' process='heat_treatment' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Heat Treatment
+      </a>
+    </div>
+  </div>
+
+  <div class="stat-tiles mt-3">
+    <div class="stat-tile"><div class="stat-tile-label">Lots</div><div class="stat-tile-value">{{ rows|length }}</div></div>
+    <div class="stat-tile"><div class="stat-tile-label">Traveller Types</div><div class="stat-tile-value">{{ batch.traveller_types|length }}</div></div>
+    <div class="stat-tile"><div class="stat-tile-label">Received</div><div class="stat-tile-value">{{ batch.received_weight_total }}<small>kg</small></div></div>
+    <div class="stat-tile is-accent"><div class="stat-tile-label">Output</div><div class="stat-tile-value">{{ batch.output_weight_total }}<small>kg</small></div></div>
+  </div>
+</div>
+
+{% include "heat_treatment/_heat_batch_lots.html" %}
+
+{% endblock %}
