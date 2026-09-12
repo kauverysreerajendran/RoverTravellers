@@ -315,6 +315,9 @@ class HeatBatchLabelTests(SeededHeatTestBase):
         response = self.client.get(reverse("heat_treatment:batch_qr", kwargs={"batch_no": "B001"}))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/svg+xml")
+        body = response.content.decode()
+        self.assertIn(url, body, "The SVG must say what it encodes")
+        self.assertNotIn("127.0.0.1", body)
 
     @override_settings(SITE_BASE_URL="http://192.168.1.50:8000")
     def test_a_label_never_points_at_localhost_when_a_base_url_is_set(self):

@@ -105,6 +105,10 @@ def _qr_svg(payload: str, caption: str) -> str:
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
         f'width="100%" height="100%" shape-rendering="crispEdges" role="img" '
         f'aria-label="Batch {escape(caption or payload)}">'
+        # The payload in plain text as well as in the matrix: it is the
+        # image's description, and it makes what a label points at
+        # readable without a camera.
+        f'<desc>{escape(payload)}</desc>'
         f'<rect width="{width}" height="{height}" fill="#fff"/>'
         f'<path d="{squares}" fill="#000"/>{text}</svg>'
     )
