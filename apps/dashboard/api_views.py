@@ -4,6 +4,16 @@ from rest_framework.views import APIView
 from . import services
 
 
+class DashboardOverviewApiView(APIView):
+    """GET /api/dashboard/overview/?range=7d|30d|90d|ytd
+
+    The same payload the overview screen renders, so a client can poll it
+    without a page load."""
+
+    def get(self, request):
+        return Response(services.overview(request.query_params.get("range", services.DEFAULT_RANGE)))
+
+
 class DashboardSummaryView(APIView):
     def get(self, request):
         data = services.get_dashboard_summary()

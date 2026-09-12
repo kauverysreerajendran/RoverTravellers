@@ -9,12 +9,27 @@ from . import services
 
 
 class DashboardOverviewView(LoginRequiredMixin, TemplateView):
+    """The overview. Everything on it is built by walking the process
+    registry, so a sixth process gets its KPI weight, its flow column and
+    its chart series without this view changing."""
+
     template_name = "dashboard/overview.html"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["page_title"] = "Dashboard"
-        ctx.update(services.get_dashboard_summary())
+        data = services.overview(self.request.GET.get("range", services.DEFAULT_RANGE))
+        ctx.update(data)
+        ctx.update({
+            "page_title": "Dashboard",
+            "page_subtitle": "",
+            # Handed to the charts through json_script rather than
+            # templated into JavaScript.
+            "chart_data": {
+                "throughput": data["throughput"],
+                "wastage": data["wastage"],
+                "traveller_mix": data["traveller_mix"],
+            },
+        })
         return ctx
 
 
