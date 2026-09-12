@@ -32,4 +32,10 @@ class HeatTreatmentTransaction(OperationBase):
     def save(self, *args, **kwargs):
         if not self.transaction_number:
             self.transaction_number = generate_business_number("HT", HeatTreatmentTransaction, "transaction_number")
+        # The Initiate screen no longer asks for a surface finish: it is the
+        # material's own property, so it comes from the lot rather than from
+        # the operator. The column stays, and the Complete Table still shows
+        # it, but nothing re-enters it by hand.
+        if self.surface_finish_id is None and self.lot_id:
+            self.surface_finish = self.lot.surface_finish
         super().save(*args, **kwargs)

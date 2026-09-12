@@ -527,6 +527,9 @@ a { color: var(--rover-red); }
 .slot.is-picked { background: var(--rover-red-tint); border: 1px solid var(--rover-red); color: var(--rover-red); border-style: solid; }
 .slot-picker-racks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .75rem; max-height: 420px; overflow-y: auto; }
 
+/* Product credit, on the login page and at the foot of every screen. */
+.app-credit { margin-top: 1.75rem; text-align: center; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--rover-muted); }
+
 /* Process stepper (Forming onward) */
 .stepper { display: flex; align-items: flex-start; overflow-x: auto; padding: .5rem 0; }
 .stepper-step { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 110px; position: relative; }
