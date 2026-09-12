@@ -57,6 +57,9 @@ LEDGER_MODELS = [
 ]
 
 TAIL_MODELS = [
+    # Furnace loads are process data; they are deleted after the
+    # transactions that point at them.
+    "heat_treatment.HeatBatch",
     "production.ProductionLot",
     "production.ProductionOrder",
     "masters.CoilMaster",

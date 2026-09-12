@@ -35,6 +35,10 @@ class HeatBatchManager(models.Manager):
             return ""
         highest = 0
         for batch_no in self.values_list("batch_no", flat=True):
+            # Numbers carried over from before this format existed (a
+            # legacy HT-2604-001) are not part of its sequence.
+            if not fmt.matches(batch_no):
+                continue
             number = fmt.number_of(batch_no)
             if number and number > highest:
                 highest = number

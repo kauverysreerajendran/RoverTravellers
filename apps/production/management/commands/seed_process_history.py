@@ -48,6 +48,8 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.finished_goods import services as fg_services
+from apps.heat_treatment import services as heat_services
+from apps.heat_treatment.models import HeatBatch
 from apps.inventory import services as inventory_services
 from apps.inventory.models import FinishedGoodsStock, StockTransaction, WIPStock
 from apps.masters import services as masters_services
@@ -130,6 +132,11 @@ AGE_BANDS = [
     (0, 0, False),   # 0-1 days: still in progress at the origin process
 ]
 
+# A furnace load holds this many lots. Work that happens together on the
+# shop floor has to be generated together, which is why the plan is walked
+# one process at a time rather than one wire serial at a time.
+LOTS_PER_FURNACE_LOAD = (2, 4)
+
 # One batch in every five is left initiated-but-not-completed at whatever
 # process its age band reached, so every Main Table shows in-progress rows
 # as well as incoming ones.
@@ -137,7 +144,9 @@ LEAVE_OPEN_EVERY = 5
 
 # Models whose rows a service writes with `auto_now_add`, and which
 # therefore have to be moved back to the simulated date afterwards.
-BACKDATED_LEDGERS = (AuditLog, OperationStatusHistory, StockTransaction, WIPStock, FinishedGoodsStock)
+BACKDATED_LEDGERS = (
+    AuditLog, OperationStatusHistory, StockTransaction, WIPStock, FinishedGoodsStock,
+)
 
 
 def money(value):
@@ -168,6 +177,10 @@ class Command(BaseCommand):
         self.rng = random.Random(options["seed"])
         self.warnings = []
         self.batch_counters = {}
+        # The furnace load currently being filled, per day and per fate, and
+        # the loads still waiting for the rest of their lots' output weights.
+        self.furnace_loads = {}
+        self.pending_loads = {}
         # Ceiling for every simulated moment; see `_stamp`. Fixed at the
         # start of the run, so it is always earlier than any marker taken
         # later on.
@@ -203,8 +216,7 @@ class Command(BaseCommand):
             self._check_wire_serials(len(plan))
             self._receive_coils(plan, date_from, date_to)
 
-            for entry in plan:
-                self._run_batch(entry)
+            self._run_plan(plan)
 
             self._print_warnings()
             self._assert_chain_is_intact()
@@ -487,13 +499,33 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
     # Execution - one batch, through the real services
     # ------------------------------------------------------------------
-    def _run_batch(self, entry):
-        record = self._initiate_rolling(entry)
-        for step in range(1, entry["target"] + 1):
-            self._complete(PROCESSES[step - 1], record, entry)
-            record = self._initiate(PROCESSES[step], record.handover_lot, entry)
-        if entry["complete"]:
-            self._complete(PROCESSES[entry["target"]], record, entry)
+    def _run_plan(self, plan):
+        """Walk the whole plan one process at a time.
+
+        Material that sits at a process together is generated together,
+        which is what lets a real furnace load - several wire serials, often
+        of different traveller types, in one Heat Batch - come out of this.
+        Each lot still moves through the registry on its own; only the order
+        the generator visits them in changed.
+        """
+        for entry in plan:
+            entry["record"] = self._initiate_rolling(entry)
+
+        for step in range(1, len(PROCESSES)):
+            due = [entry for entry in plan if entry["target"] >= step]
+            # Everything finishes at this process before anything starts at
+            # the next one, so a furnace load is out of the furnace before
+            # any of its lots is picked up downstream.
+            for entry in due:
+                self._complete(PROCESSES[step - 1], entry["record"], entry)
+            for entry in due:
+                entry["record"] = self._initiate(
+                    PROCESSES[step], entry["record"].handover_lot, entry
+                )
+
+        for entry in plan:
+            if entry["complete"]:
+                self._complete(PROCESSES[entry["target"]], entry["record"], entry)
 
     def _initiate_rolling(self, entry):
         process = PROCESSES[0]
@@ -545,12 +577,57 @@ class Command(BaseCommand):
         marker = self._marker()
         if process.next is None:
             record = self._receive_finished_goods(process, lot, entry)
+        elif self._groups_into_batches(process):
+            record = self._initiate_into_furnace_load(process, lot, entry, stamp)
         else:
             record = production_services.initiate_stage(
                 process, lot, self.user, **self._initiate_fields(process, entry, stamp)
             )
         self._backdate(stamp, marker, record)
         return record
+
+    @staticmethod
+    def _groups_into_batches(process):
+        """A process whose records carry a heat batch works in loads. Read
+        off the model, so nothing here names a stage."""
+        return "heat_batch" in {field.name for field in process.model._meta.get_fields()}
+
+    def _initiate_into_furnace_load(self, process, lot, entry, stamp):
+        """Put this lot in the batch currently being filled, opening a new
+        one when that load is full, the day has turned, or the lot's fate
+        differs: lots that will come out of the furnace are loaded together,
+        and lots left in it are loaded together, so both an in-progress and
+        a completed batch exist to look at."""
+        # Lots are loaded together only when they will also come out
+        # together: one that passes through, one that ends here completed
+        # and one that is left in the furnace finish at three different
+        # moments, and a load cannot wait on a lot that never finishes.
+        if entry["target"] > process.index:
+            fate = "passes"
+        elif entry["complete"]:
+            fate = "ends_complete"
+        else:
+            fate = "ends_open"
+        will_complete = fate != "ends_open"
+        key = (stamp.date(), fate)
+        load = self.furnace_loads.get(key)
+        if load is None or load["used"] >= load["size"]:
+            batch = heat_services.get_or_create_heat_batch(
+                HeatBatch.objects.next_batch_no(), self.user
+            )
+            HeatBatch.objects.filter(pk=batch.pk).update(created_at=stamp)
+            load = {"batch": batch, "size": self.rng.randint(*LOTS_PER_FURNACE_LOAD),
+                    "used": 0, "expected": 0, "outputs": {}}
+            self.furnace_loads[key] = load
+
+        records = heat_services.initiate_heat_batch(
+            load["batch"], [lot], self.user, operation_date=stamp.date()
+        )
+        load["used"] += 1
+        if will_complete:
+            load["expected"] += 1
+            self.pending_loads[load["batch"].pk] = load
+        return records[0]
 
     def _initiate_fields(self, process, entry, stamp):
         """Only the fields a process's own Initiate screen asks for."""
@@ -603,6 +680,8 @@ class Command(BaseCommand):
         marker = self._marker()
         if process.next is None:
             fg_services.approve_finished_goods(record, self.user, mark_available=True)
+        elif self._groups_into_batches(process) and record.heat_batch_id:
+            self._complete_furnace_load(record, entry, stamp)
         else:
             self._apply_completion_values(process, record, entry)
             if process.previous is None:
@@ -618,6 +697,30 @@ class Command(BaseCommand):
         record.refresh_from_db()
         self._backdate(stamp, marker, record)
         return record
+
+    def _complete_furnace_load(self, record, entry, stamp):
+        """Hold this lot's output weight until its whole load is ready, then
+        finish the batch through the same service the screen calls - so the
+        lots hand over to the next process individually, exactly as they do
+        for an operator."""
+        load = self.pending_loads.get(record.heat_batch_id)
+        output = money(record.received_weight * Decimal(str(self.rng.uniform(*YIELD_RANGE))))
+        if load is None:
+            # A lot whose load was never registered for completion: finish
+            # it on its own rather than leaving it stuck.
+            record.output_quantity = output
+            record.save(update_fields=["output_quantity"])
+            production_services.complete_stage(record, self.user)
+            return
+
+        load["outputs"][record.lot_id] = output
+        if len(load["outputs"]) < load["expected"]:
+            return
+
+        batch = load["batch"]
+        heat_services.complete_heat_batch(batch, load["outputs"], self.user)
+        HeatBatch.objects.filter(pk=batch.pk).update(completed_at=stamp)
+        self.pending_loads.pop(batch.pk, None)
 
     def _apply_completion_values(self, process, record, entry):
         """Yield loss plus whatever else this process records at completion.
@@ -673,6 +776,23 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(warning))
             self.stdout.write(self.style.WARNING("=" * 78))
 
+    def _print_furnace_loads(self):
+        """Heat batches, and how many of them mix traveller types - a load
+        of one type over and over would not exercise the batch screens."""
+        batches = list(HeatBatch.objects.all())
+        if not batches:
+            return
+        mixed = sum(1 for batch in batches if len(batch.traveller_types) > 1)
+        completed = sum(1 for batch in batches if batch.status == "completed")
+        sizes = [batch.transactions.count() for batch in batches]
+        self.stdout.write("")
+        self.stdout.write(
+            f"Heat batches: {len(batches)} ({completed} completed, {len(batches) - completed} in progress) | "
+            f"{mixed} hold more than one traveller type "
+            f"({(mixed * 100 // len(batches))}%) | "
+            f"lots per batch {min(sizes)}-{max(sizes)}"
+        )
+
     def _print_zone_occupancy(self):
         """Where the generated material physically sits. Rolling's completed
         wire waits on its zone until Forming initiates it, and received
@@ -692,9 +812,10 @@ class Command(BaseCommand):
                 f"{summary['occupied']:>10}{summary['empty']:>7}"
             )
 
-    def _process_dates(self, process):
-        """Earliest and latest date shown on this process's two screens."""
-        bounds = process.model.objects.aggregate(first=Min("created_at"), last=Max("created_at"))
+    def _process_dates(self, process, queryset=None):
+        """Earliest and latest date shown on a process's screen."""
+        source = process.model.objects if queryset is None else queryset
+        bounds = source.aggregate(first=Min("created_at"), last=Max("created_at"))
         if bounds["first"] is None:
             return "-", "-"
         return (
@@ -712,7 +833,9 @@ class Command(BaseCommand):
         self.stdout.write("-" * len(header))
         for process in PROCESSES:
             incoming = process.incoming_queryset(None)
-            earliest, latest = self._process_dates(process)
+            # The span that matters is what the Complete Table actually
+            # shows, not every row the model holds.
+            earliest, latest = self._process_dates(process, process.complete_queryset(None))
             self.stdout.write(
                 f"{process.label:<16}"
                 f"{(incoming.count() if incoming is not None else 0):>9}"
@@ -722,6 +845,7 @@ class Command(BaseCommand):
             )
 
         self._print_zone_occupancy()
+        self._print_furnace_loads()
 
         used_types = RollingBatch.objects.values("traveller_type").distinct().count()
         active_types = TravellerType.objects.filter(is_active=True).count()
