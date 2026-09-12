@@ -176,7 +176,6 @@ class ProcessMainTableView(ProcessTableView):
         ctx.update(
             {
                 "page_title": f"{process.label} - Main Table",
-                "page_subtitle": process.main_description,
                 "columns": columns,
                 "has_actions": True,
                 "create_url": reverse(process.create_url_name) if process.create_url_name else "",
@@ -201,7 +200,6 @@ class ProcessCompleteTableView(ProcessTableView):
         ctx.update(
             {
                 "page_title": f"{process.label} - Complete Table",
-                "page_subtitle": process.complete_description,
                 "columns": columns,
                 "has_actions": False,
                 "create_url": "",
