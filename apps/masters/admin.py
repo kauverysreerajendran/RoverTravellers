@@ -65,3 +65,33 @@ class WireSerialMasterAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(models.RackZone)
+class RackZoneAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "process_slug", "rack_count", "rows", "columns", "is_active")
+    list_filter = ("is_active", "process_slug")
+    search_fields = ("code", "name")
+
+
+@admin.register(models.StorageRack)
+class StorageRackAdmin(admin.ModelAdmin):
+    list_display = ("code", "zone", "position", "is_active")
+    list_filter = ("zone", "is_active")
+    search_fields = ("code",)
+
+
+@admin.register(models.RackSlot)
+class RackSlotAdmin(admin.ModelAdmin):
+    list_display = ("label", "rack", "row", "column", "lot", "placed_at")
+    list_filter = ("zone", "rack")
+    search_fields = ("rack__code", "lot__lot_number")
+    raw_id_fields = ("lot",)
+
+
+@admin.register(models.RackPlacement)
+class RackPlacementAdmin(admin.ModelAdmin):
+    list_display = ("slot", "lot", "placed_at", "released_at", "released_reason")
+    list_filter = ("slot__zone",)
+    search_fields = ("lot__lot_number", "slot__rack__code")
+    raw_id_fields = ("slot", "lot")

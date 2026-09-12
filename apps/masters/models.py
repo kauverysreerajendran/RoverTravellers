@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -213,3 +214,207 @@ class Machine(MasterDataModel):
         """Machines are identified by their code alone ("1A"); rendering
         code + name produced "1A - forming 1A" in every dropdown."""
         return self.code
+
+
+# ---------------------------------------------------------------------------
+# Storage rack zones - the physical grids material sits on between
+# processes. `RackMaster` above is the raw-material coil bay and is
+# untouched by these tables: a zone belongs to a *process*, and the
+# process whose completion (or receipt) puts material on it is named by
+# `process_slug`, resolved against the process registry rather than any
+# hardcoded list of stages.
+# ---------------------------------------------------------------------------
+
+ROW_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def row_letter(row: int) -> str:
+    """1 -> A, 2 -> B. Beyond Z the number itself is used, so an oversized
+    grid degrades to a readable label instead of raising."""
+    index = row - 1
+    return ROW_LETTERS[index] if 0 <= index < len(ROW_LETTERS) else str(row)
+
+
+class RackZone(models.Model):
+    """One storage area: N identical racks of `rows` x `columns` slots.
+
+    `process_slug` is the process that places material here - Rolling's
+    completed wire waits on the Forming zone, received stock sits on the
+    Finished Goods zone. It is validated against the registry at save
+    time so a zone can never point at a process that does not exist.
+    """
+
+    zone_id = models.AutoField(primary_key=True)
+    code = models.CharField(max_length=10, unique=True, help_text="e.g. FORMING, FG")
+    name = models.CharField(max_length=100)
+    process_slug = models.CharField(
+        max_length=30, db_index=True,
+        help_text="Slug of the process whose completion/receipt places material on this zone.",
+    )
+    rack_count = models.PositiveIntegerField(default=1)
+    rows = models.PositiveIntegerField(default=5)
+    columns = models.PositiveIntegerField(default=5)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name = "Rack Zone"
+
+    def __str__(self):
+        return self.name
+
+    # ------------------------------------------------------------------
+    def clean(self):
+        from apps.production.process_registry import process_sequence
+
+        slugs = process_sequence()
+        if self.process_slug not in slugs:
+            raise ValidationError(
+                {"process_slug": f'"{self.process_slug}" is not a process. Expected one of: {", ".join(slugs)}.'}
+            )
+        if not self.rows or not self.columns:
+            raise ValidationError("A zone needs at least one row and one column of slots.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    @property
+    def slots_per_rack(self):
+        return self.rows * self.columns
+
+    @property
+    def total_slots(self):
+        return self.rack_count * self.slots_per_rack
+
+    @property
+    def process(self):
+        from apps.production.process_registry import get_process
+
+        return get_process(self.process_slug)
+
+
+class StorageRack(models.Model):
+    """One physical rack inside a zone (FR-01 ... FR-10)."""
+
+    rack_id = models.AutoField(primary_key=True)
+    zone = models.ForeignKey(RackZone, on_delete=models.CASCADE, related_name="racks")
+    code = models.CharField(max_length=20)
+    position = models.PositiveIntegerField(help_text="1-based position of this rack within its zone.")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["zone", "position"]
+        constraints = [
+            models.UniqueConstraint(fields=["zone", "code"], name="unique_zone_rack_code"),
+            models.UniqueConstraint(fields=["zone", "position"], name="unique_zone_rack_position"),
+        ]
+
+    def __str__(self):
+        return self.code
+
+    def clean(self):
+        if self.position and self.zone_id and self.position > self.zone.rack_count:
+            raise ValidationError({
+                "position": (
+                    f"{self.zone.name} holds {self.zone.rack_count} racks; "
+                    f"position {self.position} is outside it."
+                )
+            })
+
+    def save(self, *args, **kwargs):
+        creating = self._state.adding
+        super().save(*args, **kwargs)
+        if creating:
+            self.build_slots()
+
+    def build_slots(self):
+        """Every slot exists as a real row from the moment the rack does, so
+        an empty slot is a record the screens read rather than a gap the
+        template has to invent."""
+        existing = set(self.slots.values_list("row", "column"))
+        missing = [
+            RackSlot(rack=self, zone_id=self.zone_id, row=row, column=column)
+            for row in range(1, self.zone.rows + 1)
+            for column in range(1, self.zone.columns + 1)
+            if (row, column) not in existing
+        ]
+        if missing:
+            RackSlot.objects.bulk_create(missing)
+        return len(missing)
+
+
+class RackSlot(models.Model):
+    """One addressable position on a rack, holding at most one lot.
+
+    `zone` is denormalized from `rack.zone` purely so the database itself
+    can enforce "a lot occupies at most one slot per zone"; it is always
+    written from the rack and never set independently.
+    """
+
+    slot_id = models.AutoField(primary_key=True)
+    rack = models.ForeignKey(StorageRack, on_delete=models.CASCADE, related_name="slots")
+    zone = models.ForeignKey(RackZone, on_delete=models.CASCADE, related_name="slots", editable=False)
+    row = models.PositiveIntegerField()
+    column = models.PositiveIntegerField()
+
+    lot = models.ForeignKey(
+        "production.ProductionLot", on_delete=models.SET_NULL, null=True, blank=True, related_name="rack_slots"
+    )
+    placed_at = models.DateTimeField(null=True, blank=True)
+    placed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["rack__position", "row", "column"]
+        constraints = [
+            models.UniqueConstraint(fields=["rack", "row", "column"], name="unique_rack_slot_position"),
+            models.UniqueConstraint(
+                fields=["zone", "lot"], condition=models.Q(lot__isnull=False), name="unique_zone_lot_slot"
+            ),
+        ]
+        indexes = [models.Index(fields=["zone", "lot"])]
+
+    def __str__(self):
+        return self.label
+
+    def save(self, *args, **kwargs):
+        if self.rack_id and self.zone_id != self.rack.zone_id:
+            self.zone_id = self.rack.zone_id
+        super().save(*args, **kwargs)
+
+    @property
+    def label(self):
+        return f"{self.rack.code}-{row_letter(self.row)}{self.column}"
+
+    @property
+    def is_empty(self):
+        return self.lot_id is None
+
+
+class RackPlacement(models.Model):
+    """History of what has sat where. One open row (released_at IS NULL)
+    per occupied slot; closed rows keep a slot's past traceable after the
+    material has moved on."""
+
+    placement_id = models.AutoField(primary_key=True)
+    slot = models.ForeignKey(RackSlot, on_delete=models.CASCADE, related_name="placements")
+    lot = models.ForeignKey("production.ProductionLot", on_delete=models.CASCADE, related_name="rack_placements")
+    placed_at = models.DateTimeField()
+    released_at = models.DateTimeField(null=True, blank=True)
+    placed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    released_reason = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["-placed_at"]
+        indexes = [models.Index(fields=["lot", "released_at"])]
+
+    def __str__(self):
+        state = "released" if self.released_at else "on rack"
+        return f"{self.lot_id} @ {self.slot.label} ({state})"
