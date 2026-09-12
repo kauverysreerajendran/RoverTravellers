@@ -5,8 +5,9 @@ from rest_framework.response import Response
 
 from apps.production.services import complete_stage
 
-from .models import HeatTreatmentTransaction
-from .serializers import HeatTreatmentTransactionSerializer
+from . import services
+from .models import HeatBatch, HeatTreatmentTransaction
+from .serializers import HeatBatchSerializer, HeatTreatmentTransactionSerializer
 
 
 class HeatTreatmentTransactionViewSet(viewsets.ModelViewSet):
@@ -34,3 +35,30 @@ class HeatTreatmentTransactionViewSet(viewsets.ModelViewSet):
             detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
             return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(operation).data)
+
+
+class HeatBatchViewSet(viewsets.ReadOnlyModelViewSet):
+    """GET /api/heat-batches/?search={q}      -> typeahead over batch no,
+                                                 wire serial, traveller type
+    GET /api/heat-batches/?status=completed   -> what the Complete Table shows
+
+    The completed set is read through the process registry's own
+    `complete_queryset`, so the dropdown can never drift from the table.
+    """
+
+    serializer_class = HeatBatchSerializer
+    lookup_field = "batch_no"
+    pagination_class = None
+
+    def get_queryset(self):
+        params = self.request.query_params
+        status_filter = params.get("status", "")
+        if status_filter == "completed":
+            process = services.process()
+            batch_ids = process.complete_queryset(self.request).values_list("heat_batch_id", flat=True)
+            batches = HeatBatch.objects.filter(pk__in=[b for b in batch_ids if b])
+            search = params.get("search", "").strip()
+            if search:
+                batches = batches.filter(pk__in=[b.pk for b in services.search_heat_batches(search, limit=200)])
+            return batches.order_by("-created_at")[:services.SEARCH_LIMIT]
+        return services.search_heat_batches(params.get("search", ""), status=status_filter)

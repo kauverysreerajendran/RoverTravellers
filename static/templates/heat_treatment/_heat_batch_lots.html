@@ -1,7 +1,8 @@
 {% comment %}
 What is in the furnace load, and where each lot has got to since. Each lot
 keeps its own transaction, so each hands over to the next process on its
-own; this table is the load seen whole.
+own; this table is the load seen whole, and - while it is open - the form
+that finishes it, one output weight per lot.
 {% endcomment %}
 <div class="section-card">
   <div class="section-head">
@@ -10,6 +11,14 @@ own; this table is the load seen whole.
       <p>Wire serials that went into the furnace together</p>
     </div>
   </div>
+
+  <form method="post" action="{% url 'heat_treatment:batch_complete' batch.batch_no %}">
+    {% csrf_token %}
+    {% if complete_errors %}
+      <div class="alert alert-danger py-2">
+        {% for error in complete_errors %}<div>{{ error }}</div>{% endfor %}
+      </div>
+    {% endif %}
 
   <div class="table-responsive">
     <table class="table table-rover align-middle">
@@ -37,7 +46,16 @@ own; this table is the load seen whole.
           <td>{{ row.transaction.traveller_no.code|default:"-" }}</td>
           <td>{{ row.transaction.surface_finish.finish_name|default:"-" }}</td>
           <td class="text-end num">{{ row.transaction.received_weight|default_if_none:"-" }}</td>
-          <td class="text-end num">{{ row.transaction.output_weight|default_if_none:"-" }}</td>
+          <td class="text-end">
+            {% if can_complete and row.transaction.status != "completed" %}
+              <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-end"
+                     style="max-width:8rem; margin-left:auto"
+                     name="output-{{ row.lot.pk }}" value="{{ row.output_value|default_if_none:'' }}"
+                     aria-label="Output weight for {{ row.transaction.wire_serial }}">
+            {% else %}
+              <span class="num">{{ row.transaction.output_weight|default_if_none:"-" }}</span>
+            {% endif %}
+          </td>
           <td><span class="badge badge-status-{{ row.transaction.status }}">{{ row.transaction.get_status_display }}</span></td>
           <td>{{ row.current_process }}</td>
           <td>{{ row.rack_slot|default:"-" }}</td>
@@ -51,4 +69,28 @@ own; this table is the load seen whole.
       </tbody>
     </table>
   </div>
+
+  {% if rows %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+    <div class="form-text mb-0">
+      {% if can_complete %}
+        Output weight starts at what each lot received and cannot exceed it. Completing hands
+        every lot to the next process on its own.
+      {% else %}
+        This batch is {{ batch.get_status_display|lower }}.
+      {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      {% if batch.status != "completed" %}
+      <a href="{% url 'heat_treatment:create' %}?batch={{ batch.batch_no }}" class="btn btn-outline-secondary">
+        <i class="bi bi-plus-lg me-1"></i> Add lots
+      </a>
+      {% endif %}
+      {% if can_complete %}
+      <button type="submit" class="btn btn-success"><i class="bi bi-check2-circle me-1"></i> Complete batch</button>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  </form>
 </div>

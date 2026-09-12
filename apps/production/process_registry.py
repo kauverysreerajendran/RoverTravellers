@@ -418,22 +418,54 @@ class HeatTreatmentProcess(StageProcess):
     model_path = "heat_treatment.HeatTreatmentTransaction"
     batch_prefix = "HT"
     create_url_name = "heat_treatment:create"
-    create_label = "New Heat Treatment Transaction"
-    select_related = StageProcess.select_related + ("surface_finish",)
-    search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "batch_number")
+    create_label = "New Heat Batch"
+    select_related = StageProcess.select_related + ("surface_finish", "heat_batch")
+    search_fields = (
+        "transaction_number", "lot__source_rolling_batch__wire_serial", "heat_batch__batch_no",
+    )
     search_placeholder = "Search wire serial, batch no..."
 
-    main_columns = (*StageProcess.identity_columns, *StageProcess.weight_columns)
+    # The furnace load this row went in with. The rows are still per lot -
+    # that is what hands over to the next process - so the batch is a
+    # column here rather than a different kind of row.
+    batch_column = Column("Batch No", "heat_batch.batch_no", order_by="heat_batch__batch_no")
+    barcode_column = Column("Barcode", "heat_batch.qr_token", kind="qr")
+
+    main_columns = (*StageProcess.identity_columns, batch_column, *StageProcess.weight_columns)
 
     complete_columns = (
         *StageProcess.identity_columns,
-        Column("Batch No", "batch_number"),
+        batch_column,
+        barcode_column,
         Column("Surface Finish", "surface_finish.finish_name"),
         Column("Date", "operation_date", kind="date"),
         Column("Received Weight (kg)", "received_weight", kind="number"),
         Column("Output Weight (kg)", "output_quantity", kind="number"),
         Column("Status", "status", kind="status", order_by="status"),
     )
+
+    def row_actions(self, obj):
+        """A row that belongs to a batch is completed with its batch: the
+        whole load comes out of the furnace together."""
+        detail = reverse(f"{self.slug}:detail", kwargs={"pk": obj.pk})
+        if obj.status == "completed":
+            actions = [{"label": "View", "url": detail, "style": "outline-secondary"}]
+        elif obj.heat_batch_id:
+            actions = [
+                {"label": "Complete",
+                 "url": reverse(f"{self.slug}:batch_detail", kwargs={"batch_no": obj.heat_batch.batch_no}),
+                 "style": "success"},
+                {"label": "View", "url": detail, "style": "outline-secondary"},
+            ]
+        else:
+            return super().row_actions(obj)
+        if obj.heat_batch_id:
+            actions.append({
+                "label": obj.heat_batch.batch_no,
+                "url": reverse(f"{self.slug}:batch_detail", kwargs={"batch_no": obj.heat_batch.batch_no}),
+                "style": "outline-secondary",
+            })
+        return actions
 
 
 class FinishingProcess(StageProcess):

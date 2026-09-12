@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="section-card">
+    <div class="section-head">
+      <div class="section-title">
+        <h6>Heat Batch</h6>
+        <p>One number for the whole furnace load. Type an open batch to add to it, or take the next free number.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-5">
+        <label class="form-label">{{ form.batch_no.label }} <span class="req">*</span></label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-upc"></i></span>
+          {{ form.batch_no }}
+          <button type="button" class="btn btn-outline-secondary" id="suggestBatchNo"
+                  data-next="{{ next_batch_no }}">Suggest next</button>
+        </div>
+        <datalist id="heatBatchOptions">
+          {% for open_batch in open_batches %}<option value="{{ open_batch.batch_no }}">{% endfor %}
+        </datalist>
+        <div class="form-text">Next free number: <strong>{{ next_batch_no }}</strong></div>
+        {% if form.batch_no.errors %}<div class="text-danger small mt-1">{{ form.batch_no.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">{{ form.operation_date.label }} <span class="req">*</span></label>
+        {{ form.operation_date }}
+        {% if form.operation_date.errors %}<div class="text-danger small mt-1">{{ form.operation_date.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-3 d-flex align-items-end">
+        <div class="form-text mb-2">
+          Surface finish comes from each lot, so a load may mix traveller types freely.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-card">
+    <div class="section-head">
+      <div class="section-title">
+        <h6>Lots in this batch</h6>
+        <p>Everything waiting at Heat Treatment. Tick every wire serial going into the furnace together.</p>
+      </div>
+      <span class="stat-chip">Waiting<strong>{{ rows|length }}</strong></span>
+    </div>
+
+    {% if form.lots.errors %}<div class="alert alert-danger py-2">{{ form.lots.errors.0 }}</div>{% endif %}
+
+    <div class="table-responsive">
+      <table class="table table-rover align-middle">
+        <thead>
+          <tr>
+            <th style="width:3rem"><input type="checkbox" class="form-check-input" id="pickAllLots" aria-label="Select all"></th>
+            <th>Wire Serial</th>
+            <th>Traveller Type</th>
+            <th>Traveller No</th>
+            <th>Surface Finish</th>
+            <th class="text-end">Received (kg)</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>
+              <input type="checkbox" class="form-check-input lot-pick" name="lots" value="{{ row.lot.pk }}"
+                     {% if row.lot.pk|stringformat:"s" in selected_ids %}checked{% endif %}
+                     aria-label="Add {{ row.wire_serial }}">
+            </td>
+            <td class="fw-semibold">{{ row.wire_serial|default:"-" }}</td>
+            <td>{{ row.traveller_type|default:"-" }}</td>
+            <td>{{ row.traveller_no|default:"-" }}</td>
+            <td>{{ row.surface_finish|default:"-" }}</td>
+            <td class="text-end num">{{ row.received_weight|default_if_none:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">Nothing is waiting at Heat Treatment.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-3">
+      <a href="{% url 'process:main' process='heat_treatment' %}" class="btn btn-link">Cancel</a>
+      <button type="submit" class="btn btn-primary"><i class="bi bi-fire me-1"></i> Start batch</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function () {
+  var suggest = document.getElementById("suggestBatchNo");
+  var field = document.getElementById("id_batch_no");
+  if (suggest && field) {
+    suggest.addEventListener("click", function () {
+      field.value = suggest.getAttribute("data-next");
+      field.focus();
+    });
+  }
+
+  var all = document.getElementById("pickAllLots");
+  var picks = Array.prototype.slice.call(document.querySelectorAll(".lot-pick"));
+  if (all) {
+    all.addEventListener("change", function () {
+      picks.forEach(function (pick) { pick.checked = all.checked; });
+    });
+  }
+})();
+</script>
+{% endblock %}

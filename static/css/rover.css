@@ -534,6 +534,8 @@ a { color: var(--rover-red); }
 /* Heat batch label QR, on the batch page. */
 .batch-qr { display: block; width: 96px; height: 96px; border: 1px solid var(--rover-border); border-radius: 10px; padding: 4px; background: #fff; }
 .batch-qr img { width: 100%; height: 100%; display: block; }
+.table-qr { display: inline-block; width: 40px; height: 40px; }
+.table-qr img { width: 100%; height: 100%; display: block; }
 .slot-empty.is-match { border-style: solid; border-color: var(--rover-success); color: var(--rover-success); }
 .slot-empty.is-dim { opacity: .35; }
 .pill.is-match { background: var(--rover-red-tint); color: var(--rover-red); }

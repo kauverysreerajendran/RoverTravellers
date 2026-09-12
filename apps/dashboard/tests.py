@@ -69,9 +69,12 @@ class GlobalScanTests(ProcessChainTestBase):
         response = self.scan(slot.label.lower())
         self.assertIn(reverse("masters:rack_zone", kwargs={"code": zone.code}), response["Location"])
 
-    def test_a_heat_treatment_batch_number_lands_on_heat_treatment(self):
+    def test_a_heat_batch_number_lands_on_heat_treatment(self):
         """A term only one process declares as searchable goes to that
-        process - this is what the removed per-table search box did."""
+        process - this is what the removed per-table search box did. Heat
+        Treatment declares its furnace load's batch number."""
+        from apps.heat_treatment import services as heat_services
+
         record = self.complete_record(self.start_at_origin(), Decimal("390.00"))
         process = get_process("heat_treatment")
         for following in PROCESSES[1:]:
@@ -80,11 +83,12 @@ class GlobalScanTests(ProcessChainTestBase):
                 break
             record = self.complete_record(record, Decimal("380.00"))
 
-        record.batch_number = "HT-9999-042"
-        record.save(update_fields=["batch_number"])
+        batch = heat_services.get_or_create_heat_batch("B999", self.admin)
+        record.heat_batch = batch
+        record.save(update_fields=["heat_batch", "batch_number"])
 
         self.assertRedirects(
-            self.scan("HT-9999-042"), f"{self.main_table_of(process)}?q=HT-9999-042",
+            self.scan(batch.batch_no), f"{self.main_table_of(process)}?q={batch.batch_no}",
             fetch_redirect_response=False,
         )
 

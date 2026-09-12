@@ -15,6 +15,7 @@ urlpatterns = [
     path("<uuid:pk>/complete/", views.HeatTreatmentCompleteView.as_view(), name="complete"),
     # The furnace load: its page, its printable label and its QR.
     path("batches/<str:batch_no>/", views.HeatBatchDetailView.as_view(), name="batch_detail"),
+    path("batches/<str:batch_no>/complete/", views.HeatBatchCompleteView.as_view(), name="batch_complete"),
     path("batches/<str:batch_no>/label/", views.HeatBatchLabelView.as_view(), name="batch_label"),
     path("batches/<str:batch_no>/qr.svg", views.HeatBatchQrView.as_view(), name="batch_qr"),
 ]

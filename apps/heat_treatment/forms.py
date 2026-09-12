@@ -39,3 +39,35 @@ class HeatTreatmentCompleteForm(StyledModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["output_quantity"].required = True
+
+
+class HeatBatchInitiateForm(forms.Form):
+    """The furnace load an operator is about to start.
+
+    There is no Surface Finish here on purpose: a load can hold lots of
+    different traveller types, and each lot's finish is its own property
+    carried from Rolling - one batch-level value would overwrite the truth
+    on every lot but one. The transaction fills it from its lot.
+    """
+
+    batch_no = forms.CharField(
+        max_length=20, label="Batch No",
+        widget=forms.TextInput(attrs={
+            "class": "form-control", "autocomplete": "off", "list": "heatBatchOptions",
+            "placeholder": "e.g. B001",
+        }),
+    )
+    operation_date = forms.DateField(
+        label="Date", widget=forms.DateInput(attrs={"type": "date", "class": "form-control"})
+    )
+    lots = forms.TypedMultipleChoiceField(
+        coerce=str, label="Lots in this batch", widget=forms.CheckboxSelectMultiple,
+        error_messages={"required": "Tick at least one lot to put in this batch."},
+    )
+
+    def __init__(self, *args, incoming_lots=(), **kwargs):
+        """`incoming_lots` is what is actually waiting at this process right
+        now; the choices are built from it so a hand-posted lot id cannot
+        pull in material that is somewhere else."""
+        super().__init__(*args, **kwargs)
+        self.fields["lots"].choices = [(str(lot.pk), lot.wire_serial or lot.lot_number) for lot in incoming_lots]

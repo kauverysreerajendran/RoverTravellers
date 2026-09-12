@@ -9,6 +9,15 @@
   <td>{% if cell.value %}{{ cell.value|time:"H:i" }}{% else %}-{% endif %}</td>
 {% elif cell.kind == "datetime" %}
   <td>{% if cell.value %}{{ cell.value|date:"d M Y H:i" }}{% else %}-{% endif %}</td>
+{% elif cell.kind == "qr" %}
+  {% comment %}The row's batch label, scannable straight off the screen.{% endcomment %}
+  <td>
+    {% if cell.value %}
+      <a href="{% url 'scan' cell.value %}" class="table-qr" title="Open this batch">
+        <img src="{% url 'scan_qr' cell.value %}" alt="Batch QR" loading="lazy">
+      </a>
+    {% else %}-{% endif %}
+  </td>
 {% elif cell.kind == "bool" %}
   <td>{{ cell.value|yesno:"Yes,No,-" }}</td>
 {% elif cell.strong %}

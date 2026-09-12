@@ -23,6 +23,7 @@ urlpatterns = [
     # What a printed QR label resolves to. Top-level and short, because it
     # is typed into a phone camera, not clicked.
     path("scan/<str:token>/", heat_treatment_views.scan, name="scan"),
+    path("scan/<str:token>/qr.svg", heat_treatment_views.scan_qr, name="scan_qr"),
     path("finishing/", include("apps.finishing.urls")),
     path("finished-goods/", include("apps.finished_goods.urls")),
     path("inventory/", include("apps.inventory.urls")),

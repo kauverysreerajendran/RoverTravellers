@@ -474,11 +474,21 @@ class ProcessChainTestBase(WorkflowTestBase):
         return prod_services.complete_stage(record, self.admin)
 
     def payload_for(self, form, lot, received):
-        """Fill an Initiate/Receive form generically, from its field types."""
+        """Fill an Initiate/Receive form generically.
+
+        A field the screen already proposes a value for (a suggested batch
+        number, today's date, the lot the operator arrived from) is
+        submitted as offered - that is what an operator who accepts the
+        screen's defaults sends. Everything else is synthesized from the
+        field's type.
+        """
         data = {}
         for name, field in form.fields.items():
+            offered = form[name].value()
             if name == "lot":
                 data[name] = str(lot.pk)
+            elif offered not in (None, "", []):
+                data[name] = offered
             elif isinstance(field, forms.ModelChoiceField):
                 choice = field.queryset.first()
                 if choice is not None:
