@@ -86,8 +86,6 @@ class ProcessConfig:
     ordering = "-created_at"
     main_columns = ()
     complete_columns = ()
-    main_description = ""
-    complete_description = ""
     create_url_name = ""
     create_label = ""
     # Button offered on an incoming row from the previous process.
@@ -308,7 +306,6 @@ class RollingProcess(ProcessConfig):
     search_placeholder = "Search wire serial, traveller type, finish..."
     create_url_name = "rolling:create"
     create_label = "New Rolling Batch"
-    complete_description = "Completed Rolling batches with the full specification, coil draw and completion values."
     open_statuses = ("In Progress",)
     completed_status = "Completed"
     handover_lot_path = "production_lots"
@@ -425,7 +422,6 @@ class HeatTreatmentProcess(StageProcess):
     select_related = StageProcess.select_related + ("surface_finish",)
     search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "batch_number")
     search_placeholder = "Search wire serial, batch no..."
-    complete_description = "Completed Heat Treatment records - partial and full - with batch number and surface finish."
 
     main_columns = (*StageProcess.identity_columns, *StageProcess.weight_columns)
 
@@ -451,7 +447,6 @@ class FinishingProcess(StageProcess):
     select_related = StageProcess.select_related + ("surface_finish",)
     search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "batch_no", "colour")
     search_placeholder = "Search wire serial, batch no, colour..."
-    complete_description = "Completed Finishing records - partial and full - with batch number and colour."
 
     main_columns = (*StageProcess.identity_columns, *StageProcess.weight_columns)
 
@@ -537,6 +532,15 @@ def process_sequence():
     """The process slugs in pipeline order - the single source of truth for
     every "which stage comes next" question in the codebase."""
     return [process.slug for process in PROCESSES]
+
+
+def process_for_app_label(app_label):
+    """The process implemented by a given app, so a model can find its own
+    process without writing its slug down."""
+    for process in PROCESSES:
+        if process.model._meta.app_label == app_label:
+            return process
+    return None
 
 
 def process_for_record(record):

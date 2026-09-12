@@ -6,6 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.masters.models import (
+    BatchNoFormat,
     CoilMaster,
     DiameterMaster,
     DiameterTravellerMapping,
@@ -52,6 +53,13 @@ RACK_ZONES = [
         "code": "FG", "name": "Finished Goods Rack", "process_slug": "finished_goods",
         "rack_prefix": "FG", "rack_count": 5, "rows": 5, "columns": 5,
     },
+]
+
+# How each process numbers its batches. Heat Treatment groups its
+# transactions into a Heat Batch numbered B001, B002 ...; the pattern lives
+# in the master table so it can be changed without a deployment.
+BATCH_NO_FORMATS = [
+    {"process_slug": "heat_treatment", "regex": r"^B\d{3}$", "prefix": "B", "pad": 3},
 ]
 
 # Official Traveller Type Master. Row 17 and 63 both read "RE2 UDR" in the
@@ -115,6 +123,7 @@ class Command(BaseCommand):
         self._seed_traveller_numbers()
         self._seed_racks()
         self._seed_rack_zones()
+        self._seed_batch_formats()
         self._seed_machines()
         self._seed_confirmed_mapping()
         self._seed_wire_serials()
@@ -203,6 +212,17 @@ class Command(BaseCommand):
                 f"  {zone.name}: {zone.racks.count()} racks x {zone.rows}x{zone.columns} "
                 f"= {zone.slots.count()} slots ({added} created this run)"
             )
+
+    def _seed_batch_formats(self):
+        for spec in BATCH_NO_FORMATS:
+            BatchNoFormat.objects.update_or_create(
+                process_slug=spec["process_slug"],
+                defaults={
+                    "regex": spec["regex"], "prefix": spec["prefix"], "pad": spec["pad"], "is_active": True
+                },
+            )
+        rows = ", ".join(f"{f.process_slug} {f.format_number(1)}" for f in BatchNoFormat.objects.all())
+        self.stdout.write(f"  Batch no formats: {BatchNoFormat.objects.count()} rows ({rows})")
 
     def _seed_machines(self):
         """Machines are master data that the process screens read (Forming

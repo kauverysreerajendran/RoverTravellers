@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from django.conf import settings
@@ -418,3 +419,71 @@ class RackPlacement(models.Model):
     def __str__(self):
         state = "released" if self.released_at else "on rack"
         return f"{self.lot_id} @ {self.slot.label} ({state})"
+
+
+class BatchNoFormat(models.Model):
+    """How a process numbers its batches, as data rather than code.
+
+    Heat Treatment groups its transactions into a Heat Batch numbered
+    B001, B002 ...; the pattern, its prefix and its width live here so the
+    business can change them without a deployment, and so nothing in the
+    code has to spell a batch number out.
+    """
+
+    format_id = models.AutoField(primary_key=True)
+    process_slug = models.CharField(
+        max_length=30, db_index=True, help_text="Slug of the process whose batches this format numbers."
+    )
+    regex = models.CharField(max_length=100, help_text=r"Full-match pattern, e.g. ^B\d{3}$")
+    prefix = models.CharField(max_length=10, blank=True, default="", help_text="e.g. B")
+    pad = models.PositiveSmallIntegerField(default=3, help_text="Digits after the prefix.")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["process_slug"]
+        verbose_name = "Batch No Format"
+
+    def __str__(self):
+        return f"{self.process_slug}: {self.regex}"
+
+    def clean(self):
+        from apps.production.process_registry import process_sequence
+
+        slugs = process_sequence()
+        if self.process_slug not in slugs:
+            raise ValidationError(
+                {"process_slug": f'"{self.process_slug}" is not a process. Expected one of: {", ".join(slugs)}.'}
+            )
+        try:
+            re.compile(self.regex)
+        except re.error as exc:
+            raise ValidationError({"regex": f"Not a valid pattern: {exc}"})
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    # ------------------------------------------------------------------
+    @classmethod
+    def for_process(cls, process):
+        """The active format for a process (or its slug), or None."""
+        if process is None:
+            return None
+        slug = getattr(process, "slug", process)
+        return cls.objects.filter(process_slug=slug, is_active=True).first()
+
+    def normalize(self, batch_no: str) -> str:
+        """Batch numbers are written by hand on the shop floor, so "b001"
+        and " B001 " are the same batch."""
+        return (batch_no or "").strip().upper()
+
+    def matches(self, batch_no: str) -> bool:
+        return bool(re.fullmatch(self.regex, self.normalize(batch_no)))
+
+    def format_number(self, number: int) -> str:
+        return f"{self.prefix}{number:0{self.pad}d}"
+
+    def number_of(self, batch_no: str):
+        """The numeric part of a batch number, or None if it has none."""
+        digits = re.sub(r"\D", "", self.normalize(batch_no) or "")
+        return int(digits) if digits else None

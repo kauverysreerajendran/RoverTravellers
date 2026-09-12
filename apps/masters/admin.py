@@ -95,3 +95,9 @@ class RackPlacementAdmin(admin.ModelAdmin):
     list_filter = ("slot__zone",)
     search_fields = ("lot__lot_number", "slot__rack__code")
     raw_id_fields = ("slot", "lot")
+
+
+@admin.register(models.BatchNoFormat)
+class BatchNoFormatAdmin(admin.ModelAdmin):
+    list_display = ("process_slug", "regex", "prefix", "pad", "is_active")
+    list_filter = ("is_active",)
