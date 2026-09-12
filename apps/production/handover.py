@@ -64,3 +64,23 @@ class HandoverRecord:
     @property
     def output_weight(self):
         return self.output_quantity
+
+    # ------------------------------------------------------------------
+    # Storage rack zone. Only some processes place their material on a
+    # rack (Rolling onto the Forming racks, Finished Goods onto its own);
+    # for every other record these resolve to nothing, so one accessor
+    # serves every table without asking which process it is looking at.
+    # ------------------------------------------------------------------
+    @property
+    def rack_placement(self):
+        from apps.masters import services as rack_services
+
+        from .process_registry import process_for_record
+
+        zone = rack_services.zone_for_process(process_for_record(self))
+        return rack_services.open_placement(zone, self.handover_lot)
+
+    @property
+    def rack_slot_label(self):
+        placement = self.rack_placement
+        return placement.slot.label if placement else ""

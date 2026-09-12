@@ -4,6 +4,7 @@ from django.db import transaction
 from apps.audit.models import log_action
 from apps.inventory import services as inventory_services
 from apps.inventory.models import FinishedGoodsStock
+from apps.masters import services as rack_services
 from apps.production.process_registry import get_process
 from apps.production.services import incoming_record_for
 
@@ -13,7 +14,16 @@ PROCESS_SLUG = "finished_goods"
 
 
 @transaction.atomic
-def receive_finished_goods(*, lot, product, accepted_quantity, rejected_quantity, location, rack, shelf, tray, user, remarks=""):
+def receive_finished_goods(*, lot, product, accepted_quantity, rejected_quantity, user,
+                           rack_slot=None, location=None, rack=None, shelf=None, tray=None, remarks=""):
+    """Received stock is put on a slot of the Finished Goods rack zone,
+    which is where it stays until someone takes it off explicitly - this
+    is the terminal process, so nothing downstream releases the slot.
+
+    `location`/`rack`/`shelf`/`tray` are the superseded free-text storage
+    fields; they are still accepted so existing callers keep working, but
+    the rack slot is the location of record.
+    """
     process = get_process(PROCESS_SLUG)
     if not user.can_operate_stage(process.slug):
         raise PermissionDenied("You are not authorized to receive finished goods.")
@@ -47,8 +57,38 @@ def receive_finished_goods(*, lot, product, accepted_quantity, rejected_quantity
     fg_stock.full_clean()
     fg_stock.save()
 
-    log_action(user, "create", fg_stock, description=f"Finished goods {fg_stock.fg_lot_number} received")
+    zone = rack_services.zone_for_process(process)
+    slot = rack_services.place_lot(zone, lot, user, rack_slot) if zone is not None else None
+
+    log_action(
+        user, "create", fg_stock,
+        description=f"Finished goods {fg_stock.fg_lot_number} received",
+        metadata={"rack_slot": slot.label if slot else ""},
+    )
     return fg_stock
+
+
+@transaction.atomic
+def remove_from_rack(fg_stock, user, reason=""):
+    """Take finished goods off their rack slot. Finished Goods is terminal,
+    so no later process frees the slot: it is vacated only here, when the
+    stock physically leaves the rack."""
+    process = get_process(PROCESS_SLUG)
+    if not user.can_operate_stage(process.slug):
+        raise PermissionDenied("You are not authorized to move finished goods off a rack.")
+
+    zone = rack_services.zone_for_process(process)
+    slot = rack_services.slot_for_lot(zone, fg_stock.lot)
+    if slot is None:
+        raise ValidationError(f"{fg_stock.fg_lot_number} is not on a {zone.name if zone else 'rack'} slot.")
+
+    rack_services.release_lot(zone, fg_stock.lot, user, reason=reason or "removed from rack")
+    log_action(
+        user, "update", fg_stock,
+        description=f"Finished goods {fg_stock.fg_lot_number} removed from {slot.label}",
+        metadata={"rack_slot": slot.label, "reason": reason},
+    )
+    return slot
 
 
 @transaction.atomic

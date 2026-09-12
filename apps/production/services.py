@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from apps.audit.models import log_action
 from apps.inventory import services as inventory_services
+from apps.masters import services as rack_services
 
 from .models import OperationStatusHistory
 from .process_registry import PROCESSES, process_for_record
@@ -105,6 +106,15 @@ def initiate_stage(process, lot, user, *, draft=False, **fields):
     )
     record.full_clean()
     record.save()
+
+    # Material waiting on the previous process's storage zone is picked up
+    # the moment this process takes it on, so the slot frees for the next
+    # batch. Which zone that is comes from the registry, never a literal.
+    rack_services.release_lot(
+        rack_services.zone_for_process(process.previous), lot, user,
+        reason=f"initiated at {process.label}",
+    )
+
     log_action(
         user, "create", record,
         description=f"{record.__class__.__name__} {record.transaction_number} initiated",
@@ -163,6 +173,14 @@ def handover(record, process, user):
     if lot is not None and lot.current_stage != next_stage:
         lot.current_stage = next_stage
         lot.save(update_fields=["current_stage", "updated_at"])
+
+    # Processes that stack their output on a storage rack place it here, on
+    # the slot the completing screen picked (`record._rack_slot`) or on the
+    # next free one. A full zone raises, which aborts the completion - the
+    # operator is told to free a slot rather than losing the material.
+    zone = rack_services.zone_for_process(process)
+    if zone is not None and lot is not None:
+        rack_services.place_lot(zone, lot, user, getattr(record, "_rack_slot", None))
 
     OperationStatusHistory.objects.create(
         content_type=_content_type(record),

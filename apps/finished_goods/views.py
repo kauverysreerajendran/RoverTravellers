@@ -132,6 +132,21 @@ class FinishedGoodsRejectView(LoginRequiredMixin, View):
         return redirect("finished_goods:detail", pk=pk)
 
 
+class FinishedGoodsRemoveFromRackView(LoginRequiredMixin, View):
+    """Finished Goods is the terminal process, so nothing downstream frees
+    its rack slots: stock leaves a slot only through this action."""
+
+    def post(self, request, pk):
+        fg_stock = get_object_or_404(FinishedGoodsStock, pk=pk)
+        try:
+            slot = services.remove_from_rack(fg_stock, request.user, reason=request.POST.get("reason", ""))
+            messages.success(request, f"{fg_stock.fg_lot_number} removed from {slot.label}.")
+        except (ValidationError, PermissionDenied) as exc:
+            detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+            messages.error(request, detail)
+        return redirect("finished_goods:detail", pk=pk)
+
+
 class FinishedGoodsHoldView(LoginRequiredMixin, View):
     def post(self, request, pk):
         fg_stock = get_object_or_404(FinishedGoodsStock, pk=pk)

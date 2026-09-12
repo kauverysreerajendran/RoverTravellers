@@ -58,7 +58,10 @@ class FinishedGoodsStock(HandoverRecord, TimeStampedModel):
     fg_lot_number = models.CharField(max_length=30, unique=True, db_index=True, editable=False)
     product = models.ForeignKey(ProductMaster, on_delete=models.PROTECT, related_name="fg_stock")
     lot = models.ForeignKey(ProductionLot, on_delete=models.PROTECT, related_name="finished_goods")
-    location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="fg_stock")
+    # Superseded by the Finished Goods rack zone (masters.RackZone): stock
+    # is located by its RackSlot now. Kept nullable and unused so existing
+    # rows keep their history until a later cleanup drops them.
+    location = models.ForeignKey(Location, on_delete=models.PROTECT, null=True, blank=True, related_name="fg_stock")
     rack = models.ForeignKey(Rack, on_delete=models.SET_NULL, null=True, blank=True, related_name="fg_stock")
     shelf = models.ForeignKey(Shelf, on_delete=models.SET_NULL, null=True, blank=True, related_name="fg_stock")
     tray = models.ForeignKey(Tray, on_delete=models.SET_NULL, null=True, blank=True, related_name="fg_stock")
