@@ -1,126 +1,188 @@
 {% extends "base.html" %}
-{% load rover_extras %}
+{% load static %}
 {% block title %}Dashboard{% endblock %}
-{% block content %}
 
-<div class="row g-3 mb-4">
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card"><div class="kpi-label">Production Orders</div><div class="kpi-value">{{ total_production_orders }}</div></div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card"><div class="kpi-label">Active Lots</div><div class="kpi-value">{{ active_lots }}</div></div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card"><div class="kpi-label">Finished Goods Qty</div><div class="kpi-value">{{ finished_goods_quantity }}</div></div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card"><div class="kpi-label">Rejection Rate</div><div class="kpi-value">{{ quality_rejection_rate }}%</div></div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card"><div class="kpi-label">Rolling WIP</div><div class="kpi-value">{{ rolling_wip }}</div></div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card"><div class="kpi-label">Forming WIP</div><div class="kpi-value">{{ forming_wip }}</div></div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card"><div class="kpi-label">Heat Treatment WIP</div><div class="kpi-value">{{ heat_treatment_wip }}</div></div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card"><div class="kpi-label">Finishing WIP</div><div class="kpi-value">{{ finishing_wip }}</div></div>
-  </div>
+{% comment %}
+The overview: four figures, the line as it stands, and four charts. Every
+process on the page comes from the registry, so a sixth one appears in the
+KPIs, in the flow strip and as another series in each chart without this
+template changing.
+{% endcomment %}
+
+{% block page_header_right %}
+<div class="range-control" role="group" aria-label="Date range">
+  {% for key in ranges %}
+    <a href="?range={{ key }}" class="range-option{% if key == range %} active{% endif %}">{{ key|upper }}</a>
+  {% endfor %}
 </div>
+{% endblock %}
 
-<div class="card mb-4">
-  <div class="card-body">
-    <h6 class="mb-3">Manufacturing Workflow</h6>
-    <div class="workflow-strip align-items-stretch">
-      {% for stage in stage_summary %}
-        <div class="workflow-stage">
-          <h6>{{ stage.label }}</h6>
-          <div class="small text-muted">Lots: <strong>{{ stage.total_lots }}</strong></div>
-          <div class="small text-muted">Input: <strong>{{ stage.input_quantity }}</strong></div>
-          <div class="small text-muted">Output: <strong>{{ stage.output_quantity }}</strong></div>
-          <div class="small text-muted">Rejected: <strong>{{ stage.rejection_quantity }}</strong></div>
-          <div class="small text-muted">Pending: <strong>{{ stage.pending }}</strong> &middot; Completed: <strong>{{ stage.completed }}</strong></div>
+{% block content %}
+<div class="dash">
+
+  <!-- ---------- Four figures ---------- -->
+  <div class="kpi-row">
+    {% for kpi in kpis %}
+    <div class="kpi-tile">
+      <div class="kpi-tile-label">{{ kpi.label }}</div>
+      <div class="kpi-tile-value">
+        {{ kpi.value }}{% if kpi.unit %}<span class="kpi-tile-unit">{{ kpi.unit }}</span>{% endif %}
+      </div>
+      <div class="kpi-tile-foot">
+        {% if kpi.delta != None %}
+          {% if kpi.delta > 0 %}
+            <span class="{% if kpi.lower_is_better %}delta-down{% else %}delta-up{% endif %}">&#9650; {{ kpi.delta }}%</span>
+          {% elif kpi.delta < 0 %}
+            <span class="{% if kpi.lower_is_better %}delta-up{% else %}delta-down{% endif %}">&#9660; {{ kpi.delta }}%</span>
+          {% else %}
+            <span class="text-muted">no change</span>
+          {% endif %}
+          <span class="kpi-tile-note">{{ kpi.delta_note }}</span>
+        {% else %}
+          <span class="kpi-tile-note">{{ kpi.note }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ---------- The line as it stands ---------- -->
+  <section class="dash-card">
+    <div class="dash-card-head">
+      <h6>Line flow</h6>
+      <span class="dash-card-note">Incoming &middot; In progress &middot; Completed in range</span>
+    </div>
+    <div class="flow-strip">
+      {% for step in flow %}
+      <div class="flow-step">
+        <div class="flow-step-label">{{ step.label }}</div>
+        <div class="flow-counts">
+          <a href="{% url 'process:main' process=step.slug %}" class="flow-count" title="Waiting to be picked up">
+            <span>{{ step.incoming }}</span><small>in</small>
+          </a>
+          <a href="{% url 'process:main' process=step.slug %}" class="flow-count" title="Open here">
+            <span>{{ step.in_progress }}</span><small>open</small>
+          </a>
+          <a href="{% url 'process:complete' process=step.slug %}" class="flow-count" title="Completed in range">
+            <span>{{ step.completed }}</span><small>done</small>
+          </a>
         </div>
-        {% if not forloop.last %}<div class="workflow-arrow"><i class="bi bi-arrow-right"></i></div>{% endif %}
+        <div class="flow-bar" title="{{ step.output_kg }} kg out of {{ step.received_kg }} kg in">
+          <span style="width: {{ step.yield_pct }}%"></span>
+        </div>
+        <div class="flow-weights">
+          {{ step.output_kg }} kg
+          <span class="text-muted">of {{ step.received_kg }}</span>
+        </div>
+      </div>
+      {% if not forloop.last %}<div class="flow-link" aria-hidden="true"></div>{% endif %}
       {% endfor %}
     </div>
+  </section>
+
+  <!-- ---------- Output and wastage ---------- -->
+  <div class="dash-grid">
+    <section class="dash-card dash-span-8">
+      <div class="dash-card-head">
+        <h6>Daily output, kg</h6>
+        <div class="chart-legend" id="throughputLegend"></div>
+      </div>
+      {% if throughput.empty %}
+        <p class="dash-empty">No completions in this range.</p>
+      {% else %}
+        <div class="chart-box"><canvas id="throughputChart"></canvas></div>
+      {% endif %}
+    </section>
+
+    <section class="dash-card dash-span-4">
+      <div class="dash-card-head">
+        <h6>Wastage %</h6>
+        <span class="dash-card-note">Last 12 weeks</span>
+      </div>
+      {% if wastage.empty %}
+        <p class="dash-empty">No completions in this range.</p>
+      {% else %}
+        <div class="chart-box"><canvas id="wastageChart"></canvas></div>
+      {% endif %}
+    </section>
   </div>
+
+  <!-- ---------- Mix and storage ---------- -->
+  <div class="dash-grid">
+    <section class="dash-card dash-span-6">
+      <div class="dash-card-head">
+        <h6>Traveller type mix</h6>
+        <span class="dash-card-note">By weight rolled</span>
+      </div>
+      {% if traveller_mix.empty %}
+        <p class="dash-empty">Nothing rolled in this range.</p>
+      {% else %}
+        <div class="chart-box"><canvas id="mixChart"></canvas></div>
+      {% endif %}
+    </section>
+
+    <section class="dash-card dash-span-6">
+      <div class="dash-card-head">
+        <h6>Rack occupancy</h6>
+        <a href="{% url 'masters:rack_locator' %}" class="dash-card-link">Open racks</a>
+      </div>
+      {% if racks %}
+      <div class="rack-bars">
+        {% for bar in racks %}
+        <div class="rack-bar-row">
+          <div class="rack-bar-head">
+            <span>{{ bar.label }}</span>
+            <span class="{% if bar.over_capacity %}text-danger{% else %}text-muted{% endif %}">
+              {{ bar.occupied }} / {{ bar.total }}
+            </span>
+          </div>
+          <div class="rack-bar"><span style="width: {{ bar.pct }}%"></span></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+        <p class="dash-empty">No racks configured.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- ---------- What just finished ---------- -->
+  <section class="dash-card">
+    <div class="dash-card-head">
+      <h6>Recent completions</h6>
+      <span class="dash-card-note">Across the whole line</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-rover dash-table mb-0">
+        <thead>
+          <tr>
+            <th class="col-sno">S.No</th><th>Process</th><th>Wire Serial</th>
+            <th>Traveller Type</th><th class="text-end">Output (kg)</th><th>When</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in completions %}
+          <tr>
+            <td class="col-sno">{{ forloop.counter }}</td>
+            <td>{{ row.process }}</td>
+            <td class="fw-semibold">{{ row.wire_serial|default:"-" }}</td>
+            <td>{{ row.traveller_type|default:"-" }}</td>
+            <td class="text-end num">{{ row.output_kg }}</td>
+            <td class="text-muted">{{ row.when|date:"d M Y, H:i" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="dash-empty text-center">Nothing has been completed yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
-<div class="row g-3">
-  <div class="col-lg-6">
-    <div class="card h-100">
-      <div class="card-header bg-white fw-semibold">Recent Production Transactions</div>
-      <div class="table-responsive">
-        <table class="table table-compact mb-0">
-          <thead><tr><th class="col-sno">S.No</th><th>Stage</th><th>Transaction</th><th>Wire Serial</th><th>Status</th></tr></thead>
-          <tbody>
-          {% for t in recent_transactions %}
-            <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td class="text-capitalize">{{ t.stage|cut:"_"|default:t.stage }}</td><td>{{ t.transaction_number }}</td><td>{{ t.wire_serial|default:"-" }}</td>
-              <td><span class="badge badge-status-{{ t.status }}">{{ t.status }}</span></td></tr>
-          {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-3">No transactions yet.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+{{ chart_data|json_script:"dashboard-data" }}
+{% endblock %}
 
-  <div class="col-lg-6">
-    <div class="card h-100">
-      <div class="card-header bg-white fw-semibold">Pending Quality Approvals</div>
-      <div class="table-responsive">
-        <table class="table table-compact mb-0">
-          <thead><tr><th class="col-sno">S.No</th><th>FG Batch</th><th>Wire Serial</th><th>Product</th><th>Accepted</th><th>Rejected</th></tr></thead>
-          <tbody>
-          {% for fg in pending_qc_approvals %}
-            <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ fg.fg_lot_number }}</td><td>{{ fg.lot.wire_serial|default:"-" }}</td><td>{{ fg.product }}</td><td>{{ fg.accepted_quantity }}</td><td>{{ fg.rejected_quantity }}</td></tr>
-          {% empty %}
-            <tr><td colspan="6" class="text-center text-muted py-3">Nothing pending approval.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-6">
-    <div class="card h-100">
-      <div class="card-header bg-white fw-semibold">Low Stock Alerts</div>
-      <div class="table-responsive">
-        <table class="table table-compact mb-0">
-          <thead><tr><th class="col-sno">S.No</th><th>Material</th><th>Location</th><th>Qty</th><th>Reorder Level</th></tr></thead>
-          <tbody>
-          {% for s in low_stock_alerts %}
-            <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ s.material.material_code }}</td><td>{{ s.location.name }}</td><td>{{ s.quantity }}</td><td>{{ s.material.reorder_level }}</td></tr>
-          {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-3">All raw material stock levels are healthy.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-6">
-    <div class="card h-100">
-      <div class="card-header bg-white fw-semibold">Recent Audit Activity</div>
-      <div class="table-responsive">
-        <table class="table table-compact mb-0">
-          <thead><tr><th class="col-sno">S.No</th><th>User</th><th>Action</th><th>Entity</th><th>When</th></tr></thead>
-          <tbody>
-          {% for log in recent_audit_logs %}
-            <tr><td class="col-sno">{% sno page_obj forloop.counter0 %}</td><td>{{ log.user|default:"System" }}</td><td class="text-capitalize">{{ log.action }}</td><td>{{ log.entity_type }}</td><td>{{ log.created_at|date:"d M, H:i" }}</td></tr>
-          {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-3">No audit activity yet.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="{% static 'js/dashboard.js' %}"></script>
 {% endblock %}

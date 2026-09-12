@@ -21,6 +21,14 @@
   --rover-info: #2563b8;
   --rover-info-tint: #e8f1fc;
   --rover-bg: #f3f4f7;
+  /* Categorical palette for charts, in registry order. Defined here so
+     the stylesheet stays the one source of colour; the JS reads them. */
+  --chart-1: #e31e2d;
+  --chart-2: #101a2b;
+  --chart-3: #2563b8;
+  --chart-4: #1a9d5c;
+  --chart-5: #c47a12;
+  --chart-6: #6b7385;
   --rover-card: #ffffff;
   --rover-border: #e6e8ee;
   --header-h: 68px;
@@ -772,3 +780,103 @@ a { color: var(--rover-red); }
 .th-sort:hover { color: var(--rover-ink); background: #eef0f4; }
 .th-sort.is-sorted { color: var(--rover-red); }
 .th-sort.is-sorted i { opacity: 1; }
+
+
+/* ======================================================================
+   Dashboard
+   Flat white cards on the page ground, one accent, no shadows and no
+   gradients. The old KPI/workflow rules above are left alone - other
+   screens still use them.
+   ====================================================================== */
+.dash { max-width: 1320px; display: flex; flex-direction: column; gap: 24px; }
+
+.dash-card {
+  background: var(--rover-card); border: 1px solid var(--rover-border);
+  border-radius: 14px; padding: 1.25rem 1.4rem;
+}
+.dash-card-head { display: flex; align-items: baseline; gap: .75rem; margin-bottom: 1.1rem; }
+.dash-card-head h6 { font-size: .95rem; font-weight: 600; color: var(--rover-ink); margin: 0; }
+.dash-card-note { margin-left: auto; font-size: .75rem; color: var(--rover-muted); }
+.dash-card-link { margin-left: auto; font-size: .78rem; color: var(--rover-red); text-decoration: none; }
+.dash-card-link:hover { text-decoration: underline; }
+.dash-empty { color: var(--rover-muted); font-size: .85rem; padding: 2.5rem 0; text-align: center; margin: 0; }
+
+.dash-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; }
+.dash-span-8 { grid-column: span 8; }
+.dash-span-6 { grid-column: span 6; }
+.dash-span-4 { grid-column: span 4; }
+
+/* ---- Range control, in the page header ---- */
+.range-control { display: inline-flex; border: 1px solid var(--rover-border); border-radius: 10px; overflow: hidden; background: var(--rover-card); }
+.range-option {
+  padding: .4rem .85rem; font-size: .75rem; font-weight: 600; letter-spacing: .04em;
+  color: var(--rover-slate); text-decoration: none; border-right: 1px solid var(--rover-border);
+}
+.range-option:last-child { border-right: 0; }
+.range-option:hover { background: var(--rover-bg); color: var(--rover-ink); }
+.range-option.active { background: var(--rover-navy); color: #fff; }
+
+/* ---- Four figures ---- */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.kpi-tile {
+  background: var(--rover-card); border: 1px solid var(--rover-border);
+  border-radius: 14px; padding: 1.25rem 1.4rem;
+}
+.kpi-tile-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--rover-slate); }
+.kpi-tile-value { font-size: 2rem; font-weight: 600; color: var(--rover-navy); line-height: 1.2; margin: .5rem 0 .35rem; font-variant-numeric: tabular-nums; }
+.kpi-tile-unit { font-size: .95rem; font-weight: 600; color: var(--rover-slate); margin-left: .25rem; }
+.kpi-tile-foot { font-size: .75rem; color: var(--rover-muted); display: flex; gap: .4rem; align-items: baseline; }
+.kpi-tile-note { color: var(--rover-muted); }
+.delta-up { color: var(--rover-success); font-weight: 600; }
+.delta-down { color: var(--rover-danger); font-weight: 600; }
+
+/* ---- Line flow ---- */
+.flow-strip { display: flex; align-items: stretch; gap: .25rem; }
+.flow-step { flex: 1; min-width: 0; padding: 0 .5rem; }
+.flow-step-label { font-size: .78rem; font-weight: 600; color: var(--rover-ink); margin-bottom: .6rem; }
+.flow-counts { display: flex; gap: .5rem; margin-bottom: .7rem; }
+.flow-count { flex: 1; text-decoration: none; color: inherit; }
+.flow-count span { display: block; font-size: 1.05rem; font-weight: 600; color: var(--rover-navy); font-variant-numeric: tabular-nums; }
+.flow-count small { display: block; font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; color: var(--rover-muted); }
+.flow-count:hover span { color: var(--rover-red); }
+.flow-bar { height: 4px; background: var(--rover-bg); border-radius: 999px; overflow: hidden; }
+.flow-bar span { display: block; height: 100%; background: var(--rover-red); border-radius: 999px; }
+.flow-weights { margin-top: .45rem; font-size: .75rem; color: var(--rover-ink); font-variant-numeric: tabular-nums; }
+.flow-link { align-self: center; width: 22px; height: 1px; background: var(--rover-border); position: relative; flex: 0 0 22px; }
+.flow-link::after {
+  content: ""; position: absolute; right: 0; top: -3px;
+  border-left: 5px solid var(--rover-border); border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent;
+}
+
+/* ---- Charts ---- */
+.chart-box { height: 260px; position: relative; }
+.chart-legend { margin-left: auto; display: flex; flex-wrap: wrap; gap: .6rem; }
+.chart-chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; color: var(--rover-slate); }
+.chart-chip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* ---- Rack occupancy ---- */
+.rack-bars { display: flex; flex-direction: column; gap: 1rem; }
+.rack-bar-head { display: flex; justify-content: space-between; font-size: .8rem; margin-bottom: .35rem; }
+.rack-bar { height: 6px; background: var(--rover-bg); border-radius: 999px; overflow: hidden; }
+.rack-bar span { display: block; height: 100%; background: var(--rover-navy); border-radius: 999px; }
+
+/* ---- Recent completions ---- */
+.dash-table thead th { background: transparent; border-bottom: 1px solid var(--rover-border); font-size: .7rem; }
+.dash-table tbody td { font-size: .82rem; }
+
+@media (max-width: 991.98px) {
+  .dash-grid { grid-template-columns: 1fr; }
+  .dash-span-8, .dash-span-6, .dash-span-4 { grid-column: 1 / -1; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .flow-strip { flex-direction: column; gap: 1rem; }
+  .flow-link { display: none; }
+  .flow-step { padding: 0; border-bottom: 1px solid var(--rover-border); padding-bottom: 1rem; }
+  .flow-step:last-child { border-bottom: 0; padding-bottom: 0; }
+}
+
+@media (max-width: 575.98px) {
+  .dash { gap: 16px; }
+  .dash-grid { gap: 16px; }
+  .kpi-row { gap: 16px; }
+  .kpi-tile-value { font-size: 1.6rem; }
+}
