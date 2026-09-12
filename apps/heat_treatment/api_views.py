@@ -59,6 +59,9 @@ class HeatBatchViewSet(viewsets.ReadOnlyModelViewSet):
             batches = HeatBatch.objects.filter(pk__in=[b for b in batch_ids if b])
             search = params.get("search", "").strip()
             if search:
-                batches = batches.filter(pk__in=[b.pk for b in services.search_heat_batches(search, limit=200)])
-            return batches.order_by("-created_at")[:services.SEARCH_LIMIT]
+                matched = [b.pk for b in services.search_heat_batches(search, limit=200)]
+                # Keep the search's own order: an exact batch number first.
+                found = {b.pk: b for b in batches.filter(pk__in=matched)}
+                return [found[pk] for pk in matched if pk in found][:services.SEARCH_LIMIT]
+            return list(batches.order_by("-created_at")[:services.SEARCH_LIMIT])
         return services.search_heat_batches(params.get("search", ""), status=status_filter)

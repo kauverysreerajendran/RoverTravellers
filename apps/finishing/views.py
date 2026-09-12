@@ -12,12 +12,6 @@ class FinishingCreateView(StageCreateView):
     page_title = "Finishing Transaction"
     list_url_name = "finishing:list"
     complete_url_name = "finishing:complete"
-    checklist = [
-        "Select the completed Heat Treatment lot and enter the Batch No",
-        "Pick the date and Surface Finish - Received Weight is auto-filled",
-        "Initiating creates the transaction; enter Traveller Weight and Colour on the Complete screen",
-        "Completing the transaction makes the lot ready for Finished Goods receiving",
-    ]
 
 
 class FinishingDetailView(StageDetailView):

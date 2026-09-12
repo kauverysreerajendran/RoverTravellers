@@ -12,12 +12,6 @@ class FormingCreateView(StageCreateView):
     page_title = "Forming Transaction"
     list_url_name = "forming:list"
     complete_url_name = "forming:complete"
-    checklist = [
-        "Select the completed Rolling lot and a Forming Machine",
-        "Pick the date - Wire Serial, Traveller No and Received Weight are auto-filled",
-        "Initiating creates the transaction; enter Output Weight etc. on the Complete screen",
-        "Completing the transaction stages the output for Heat Treatment",
-    ]
 
 
 class FormingDetailView(StageDetailView):

@@ -3,13 +3,14 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, ListView, UpdateView
 
+from apps.common.views import DynamicPageSizeMixin
+
 from apps.audit.models import log_action
 
 from . import forms, models
 
 
-class MasterListView(LoginRequiredMixin, ListView):
-    paginate_by = 20
+class MasterListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     template_name = "master_data/generic_list.html"
 
     page_title = ""

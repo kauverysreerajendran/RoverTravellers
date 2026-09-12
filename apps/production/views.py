@@ -3,17 +3,18 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView
 
+from apps.common.views import DynamicPageSizeMixin
+
 from apps.audit.models import log_action
 
 from . import forms, models, services
 from .process_registry import PROCESSES
 
 
-class ProductionOrderListView(LoginRequiredMixin, ListView):
+class ProductionOrderListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     model = models.ProductionOrder
     template_name = "production/order_list.html"
     context_object_name = "orders"
-    paginate_by = 20
 
     def get_queryset(self):
         qs = models.ProductionOrder.objects.select_related("product").order_by("-created_at")
@@ -61,11 +62,10 @@ class ProductionOrderDetailView(LoginRequiredMixin, DetailView):
         return ctx
 
 
-class ProductionLotListView(LoginRequiredMixin, ListView):
+class ProductionLotListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     model = models.ProductionLot
     template_name = "production/lot_list.html"
     context_object_name = "lots"
-    paginate_by = 20
 
     def get_queryset(self):
         qs = models.ProductionLot.objects.select_related("production_order").order_by("-created_at")
@@ -129,14 +129,13 @@ class ProductionLotDetailView(LoginRequiredMixin, DetailView):
         return ctx
 
 
-class ProcessTrackerView(LoginRequiredMixin, ListView):
+class ProcessTrackerView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     """Horizontal stepper overview of the manufacturing pipeline plus a
     batch-level table showing every lot's current stage at a glance."""
 
     model = models.ProductionLot
     template_name = "production/process_tracker.html"
     context_object_name = "lots"
-    paginate_by = 25
 
     def get_queryset(self):
         return models.ProductionLot.objects.select_related("production_order__product").order_by("-created_at")

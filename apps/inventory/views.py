@@ -5,14 +5,15 @@ from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, ListView, View
 
+from apps.common.views import DynamicPageSizeMixin
+
 from . import forms, models, services
 
 
-class RawMaterialStockListView(LoginRequiredMixin, ListView):
+class RawMaterialStockListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     model = models.RawMaterialStock
     template_name = "inventory/raw_material_stock_list.html"
     context_object_name = "stocks"
-    paginate_by = 25
 
     def get_queryset(self):
         return models.RawMaterialStock.objects.select_related("material", "location").order_by("material__material_code")
@@ -23,11 +24,10 @@ class RawMaterialStockListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class WIPStockListView(LoginRequiredMixin, ListView):
+class WIPStockListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     model = models.WIPStock
     template_name = "inventory/wip_stock_list.html"
     context_object_name = "stocks"
-    paginate_by = 25
 
     def get_queryset(self):
         qs = models.WIPStock.objects.select_related("lot", "lot__source_rolling_batch", "location").order_by("stage", "-created_at")
@@ -45,11 +45,10 @@ class WIPStockListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class FinishedGoodsStockListView(LoginRequiredMixin, ListView):
+class FinishedGoodsStockListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     model = models.FinishedGoodsStock
     template_name = "inventory/finished_goods_stock_list.html"
     context_object_name = "stocks"
-    paginate_by = 25
 
     def get_queryset(self):
         return models.FinishedGoodsStock.objects.select_related("product", "lot", "lot__source_rolling_batch", "location").order_by("-created_at")
@@ -60,11 +59,10 @@ class FinishedGoodsStockListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class StockTransactionListView(LoginRequiredMixin, ListView):
+class StockTransactionListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     model = models.StockTransaction
     template_name = "inventory/stock_ledger.html"
     context_object_name = "transactions"
-    paginate_by = 40
 
     def get_queryset(self):
         qs = models.StockTransaction.objects.select_related("material", "lot", "location").order_by("-created_at")
@@ -80,11 +78,10 @@ class StockTransactionListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class StockTransferListView(LoginRequiredMixin, ListView):
+class StockTransferListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     model = models.StockTransfer
     template_name = "inventory/stock_transfer_list.html"
     context_object_name = "transfers"
-    paginate_by = 20
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -122,11 +119,10 @@ class StockTransferCompleteView(LoginRequiredMixin, View):
         return redirect("inventory:transfer_list")
 
 
-class StockAdjustmentListView(LoginRequiredMixin, ListView):
+class StockAdjustmentListView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
     model = models.StockAdjustment
     template_name = "inventory/stock_adjustment_list.html"
     context_object_name = "adjustments"
-    paginate_by = 20
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

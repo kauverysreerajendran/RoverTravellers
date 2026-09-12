@@ -21,8 +21,7 @@ from .process_registry import PROCESSES, get_process
 
 logger = logging.getLogger(__name__)
 
-PAGE_SIZES = [10, 25, 50, 100]
-DEFAULT_PAGE_SIZE = 25
+from apps.common.views import DEFAULT_PAGE_SIZE, PAGE_SIZES, resolve_page_size
 
 # Virtual Main Table status: not a value any record stores, just a filter
 # that narrows the table to the rows waiting to be initiated here.
@@ -43,11 +42,7 @@ class ProcessTableView(LoginRequiredMixin, TemplateView):
             raise Http404(f"Unknown process '{kwargs.get('process')}'.")
 
     def page_size(self):
-        try:
-            size = int(self.request.GET.get("per_page", DEFAULT_PAGE_SIZE))
-        except (TypeError, ValueError):
-            return DEFAULT_PAGE_SIZE
-        return size if size in PAGE_SIZES else DEFAULT_PAGE_SIZE
+        return resolve_page_size(self.request, DEFAULT_PAGE_SIZE)
 
     def paginate(self, queryset):
         paginator = Paginator(queryset, self.page_size())
@@ -178,7 +173,15 @@ class ProcessMainTableView(ProcessTableView):
                 "page_title": f"{process.label} - Main Table",
                 "columns": columns,
                 "has_actions": True,
-                "create_url": reverse(process.create_url_name) if process.create_url_name else "",
+                # Only the origin process can start work from nothing.
+                # Everywhere else material arrives from the process before,
+                # so the Main Table offers Initiate on the incoming row
+                # instead of a "new transaction" button that would create
+                # work with no material behind it.
+                "create_url": (
+                    reverse(process.create_url_name)
+                    if process.create_url_name and process.previous is None else ""
+                ),
                 "create_label": process.create_label,
             }
         )

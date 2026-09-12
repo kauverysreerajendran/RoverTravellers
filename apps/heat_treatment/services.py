@@ -163,15 +163,29 @@ def complete_heat_batch(batch, outputs, user):
 def search_heat_batches(q="", *, status="", limit=SEARCH_LIMIT):
     """Typeahead over batches: by number, by any wire serial in the load, or
     by any traveller type in it. Plain ORM - the data is small enough that a
-    search index would be a dependency without a benefit."""
+    search index would be a dependency without a benefit.
+
+    An exact batch number comes first. It has to: wire serials read SB274
+    and batch numbers read B274, so scanning a batch number also matches
+    the wire that happens to contain it, and the thing that was scanned
+    must be the thing at the top.
+    """
     batches = HeatBatch.objects.all()
     if status:
         batches = batches.filter(status=status)
     q = (q or "").strip()
-    if q:
-        batches = batches.filter(
+    if not q:
+        return list(batches.order_by("-created_at")[:limit])
+
+    exact = list(batches.filter(batch_no__iexact=q)[:1])
+    rest = (
+        batches.filter(
             Q(batch_no__icontains=q)
             | Q(transactions__lot__source_rolling_batch__wire_serial__icontains=q)
             | Q(transactions__lot__source_rolling_batch__traveller_type__name__icontains=q)
         )
-    return batches.distinct().order_by("-created_at")[:limit]
+        .exclude(pk__in=[batch.pk for batch in exact])
+        .distinct()
+        .order_by("-created_at")[: limit - len(exact)]
+    )
+    return exact + list(rest)

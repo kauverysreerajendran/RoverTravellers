@@ -45,10 +45,17 @@ class HeatBatchNumberTests(SeededHeatTestBase):
         self.assertEqual(batch.batch_no, "B001")
 
     def test_a_number_the_format_refuses_is_rejected(self):
-        for bad in ("X1", "B1", "B0001", ""):
+        for bad in ("X1", "B1", "B12", "B00A", ""):
             with self.subTest(batch_no=bad):
                 with self.assertRaises(ValidationError):
                     heat_services.get_or_create_heat_batch(bad, self.admin)
+
+    def test_the_series_does_not_stop_at_three_digits(self):
+        """B001 is the shape asked for, but the pattern allows more digits
+        so the series does not wall at B999."""
+        batch = heat_services.get_or_create_heat_batch("B1000", self.admin)
+        self.assertEqual(batch.batch_no, "B1000")
+        self.assertEqual(HeatBatch.objects.next_batch_no(), "B1001")
 
     def test_changing_the_master_row_changes_what_is_accepted(self):
         """The format is data: an admin can change it without a deploy."""
@@ -361,6 +368,12 @@ class HeatBatchApiTests(HeatFlowTestBase):
     def test_it_finds_a_batch_by_number(self):
         self.assertIn("B001", self.search(search="b00"))
 
+    def test_an_exact_batch_number_comes_first(self):
+        """Wire serials read SB274 and batch numbers read B274, so a
+        scanned batch number also matches a wire that contains it; the
+        thing scanned has to be the thing at the top."""
+        self.assertEqual(self.search(search="B001")[0], "B001")
+
     def test_it_finds_a_batch_by_a_wire_serial_in_it(self):
         self.assertIn("B001", self.search(search=self.lots[0].wire_serial))
 
@@ -387,3 +400,113 @@ class LocateModalTests(ProcessChainTestBase):
         self.client.logout()
         response = self.client.get(reverse("accounts:login"))
         self.assertNotContains(response, 'id="locateModal"')
+
+
+class MainTableButtonTests(ProcessChainTestBase):
+    """Only the origin process can start work from nothing; everywhere else
+    material arrives from the process before it."""
+
+    def test_only_the_origin_process_offers_a_create_button(self):
+        for process in PROCESSES:
+            with self.subTest(process=process.slug):
+                response = self.client.get(reverse("process:main", kwargs={"process": process.slug}))
+                self.assertEqual(response.status_code, 200)
+                offered = bool(response.context["create_url"])
+                self.assertEqual(
+                    offered, process.previous is None,
+                    f"{process.label} should {'' if process.previous is None else 'not '}offer a create button",
+                )
+
+    def test_the_downstream_labels_are_gone_from_the_screen(self):
+        for process in PROCESSES:
+            if process.previous is None:
+                continue
+            with self.subTest(process=process.slug):
+                response = self.client.get(reverse("process:main", kwargs={"process": process.slug}))
+                self.assertNotContains(response, process.create_label)
+
+
+class PageSizeTests(ProcessChainTestBase):
+    """Every screen shows more than a screenful, and takes ?per_page=."""
+
+    def test_process_tables_default_to_more_than_twenty_rows(self):
+        from apps.common.views import DEFAULT_PAGE_SIZE
+
+        self.assertGreater(DEFAULT_PAGE_SIZE, 20)
+        response = self.client.get(reverse("process:main", kwargs={"process": PROCESSES[0].slug}))
+        self.assertEqual(response.context["per_page"], DEFAULT_PAGE_SIZE)
+
+    def test_per_page_is_honoured_and_bounded(self):
+        url = reverse("process:main", kwargs={"process": PROCESSES[0].slug})
+        self.assertEqual(self.client.get(url, {"per_page": 100}).context["per_page"], 100)
+        # A hand-typed size cannot ask the database for everything.
+        self.assertEqual(self.client.get(url, {"per_page": 100000}).context["per_page"], 50)
+        self.assertEqual(self.client.get(url, {"per_page": "lots"}).context["per_page"], 50)
+
+    def test_the_other_list_screens_take_the_same_parameter(self):
+        from apps.common.views import DEFAULT_PAGE_SIZE
+
+        for name in ("production:order_list", "production:lot_list", "inventory:wip_list",
+                     "inventory:transaction_list", "audit:list"):
+            with self.subTest(screen=name):
+                response = self.client.get(reverse(name))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.context["per_page"], DEFAULT_PAGE_SIZE)
+                self.assertEqual(
+                    self.client.get(reverse(name), {"per_page": 25}).context["per_page"], 25
+                )
+
+
+class BatchRenumberTests(SeededHeatTestBase):
+    """Legacy numbers become the B-series, in the order the furnace ran."""
+
+    def test_it_renumbers_legacy_batches_oldest_first(self):
+        from django.utils import timezone
+
+        old = HeatBatch.objects.create(batch_no="HT-2604-001")
+        older = HeatBatch.objects.create(batch_no="HT-2605-002")
+        # The batches were written in one migration, so the order comes from
+        # the work, not from the rows: fake that by dating their creation.
+        HeatBatch.objects.filter(pk=older.pk).update(
+            created_at=timezone.now() - timezone.timedelta(days=2)
+        )
+
+        call_command("renumber_heat_batches", stdout=StringIO())
+
+        self.assertEqual(
+            list(HeatBatch.objects.order_by("batch_no").values_list("batch_no", flat=True)),
+            ["B001", "B002"],
+        )
+        older.refresh_from_db()
+        self.assertEqual(older.batch_no, "B001", "The oldest work takes the first number")
+
+    def test_the_legacy_column_on_each_transaction_follows(self):
+        batch = HeatBatch.objects.create(batch_no="HT-2604-001")
+        call_command("renumber_heat_batches", stdout=StringIO())
+        batch.refresh_from_db()
+        self.assertEqual(batch.batch_no, "B001")
+        for transaction in batch.transactions.all():
+            self.assertEqual(transaction.batch_number, "B001")
+
+    def test_a_dry_run_writes_nothing(self):
+        HeatBatch.objects.create(batch_no="HT-2604-001")
+        call_command("renumber_heat_batches", dry_run=True, stdout=StringIO())
+        self.assertTrue(HeatBatch.objects.filter(batch_no="HT-2604-001").exists())
+
+    def test_running_it_again_changes_nothing(self):
+        HeatBatch.objects.create(batch_no="HT-2604-001")
+        call_command("renumber_heat_batches", stdout=StringIO())
+        call_command("renumber_heat_batches", stdout=StringIO())
+        self.assertEqual(
+            list(HeatBatch.objects.values_list("batch_no", flat=True)), ["B001"]
+        )
+
+
+class LocateBoxTests(ProcessChainTestBase):
+    """The Locate box is one search field, and no camera."""
+
+    def test_the_modal_has_a_search_box_and_no_camera(self):
+        response = self.client.get(reverse("dashboard:overview"))
+        self.assertContains(response, 'id="locateSearch"')
+        self.assertNotContains(response, "locateScanStart")
+        self.assertNotContains(response, "html5-qrcode")

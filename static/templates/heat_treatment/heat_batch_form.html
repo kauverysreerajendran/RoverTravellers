@@ -55,6 +55,14 @@
 
     {% if form.lots.errors %}<div class="alert alert-danger py-2">{{ form.lots.errors.0 }}</div>{% endif %}
 
+    {% if rows|length == 1 %}
+    <div class="alert alert-info py-2 small">
+      <i class="bi bi-info-circle me-1"></i>
+      Only one lot is waiting at Heat Treatment, so this load can hold one for now.
+      Complete more Forming work, or add the rest to this batch later from its page.
+    </div>
+    {% endif %}
+
     <div class="table-responsive">
       <table class="table table-rover align-middle">
         <thead>

@@ -22,6 +22,11 @@ from django.utils.html import escape
 QUIET_ZONE = 4
 # Height reserved under the code for the batch number, in modules.
 CAPTION_HEIGHT = 5
+# Drawn at this many user units per module. A module is then a whole
+# number of units across at any sane display size, which is what keeps the
+# printed and on-screen code sharp instead of smearing one module into the
+# next at fractional scale.
+MODULE = 8
 
 
 def site_base_url(request=None) -> str:
@@ -77,7 +82,10 @@ def _qr_svg(payload: str, caption: str) -> str:
     by camera."""
     code = qrcode.QRCode(
         version=None,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        # Quartile recovery: a label on a furnace door gets scuffed, and a
+        # code that still reads with a quarter of it damaged is worth the
+        # few extra modules.
+        error_correction=qrcode.constants.ERROR_CORRECT_Q,
         box_size=1,
         border=0,
     )
@@ -86,25 +94,37 @@ def _qr_svg(payload: str, caption: str) -> str:
     matrix = code.get_matrix()
 
     size = len(matrix)
-    width = size + QUIET_ZONE * 2
-    height = width + (CAPTION_HEIGHT if caption else 0)
+    width = (size + QUIET_ZONE * 2) * MODULE
+    height = width + (CAPTION_HEIGHT * MODULE if caption else 0)
 
-    squares = "".join(
-        f"M{x + QUIET_ZONE} {y + QUIET_ZONE}h1v1h-1z"
-        for y, row in enumerate(matrix)
-        for x, filled in enumerate(row)
-        if filled
-    )
+    # One path, one module per rect, on whole-unit coordinates. Runs of
+    # neighbouring modules are merged into a single rect so the path stays
+    # small and the boundaries between them cannot show as seams.
+    parts = []
+    for y, row in enumerate(matrix):
+        run = 0
+        for x, filled in enumerate(row + [False]):
+            if filled:
+                run += 1
+                continue
+            if run:
+                left = (x - run + QUIET_ZONE) * MODULE
+                top = (y + QUIET_ZONE) * MODULE
+                parts.append(f"M{left} {top}h{run * MODULE}v{MODULE}h-{run * MODULE}z")
+            run = 0
+    squares = "".join(parts)
+
     text = ""
     if caption:
         text = (
-            f'<text x="{width / 2}" y="{width + CAPTION_HEIGHT - 1.4}" text-anchor="middle" '
-            f'font-family="monospace" font-size="3.2" fill="#000">{escape(caption)}</text>'
+            f'<text x="{width / 2}" y="{width + CAPTION_HEIGHT * MODULE - MODULE}" text-anchor="middle" '
+            f'font-family="monospace" font-weight="bold" font-size="{MODULE * 3.2:.0f}" '
+            f'fill="#000">{escape(caption)}</text>'
         )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
-        f'width="100%" height="100%" shape-rendering="crispEdges" role="img" '
-        f'aria-label="Batch {escape(caption or payload)}">'
+        f'width="{width}" height="{height}" preserveAspectRatio="xMidYMid meet" '
+        f'role="img" aria-label="Batch {escape(caption or payload)}">'
         # The payload in plain text as well as in the matrix: it is the
         # image's description, and it makes what a label points at
         # readable without a camera.

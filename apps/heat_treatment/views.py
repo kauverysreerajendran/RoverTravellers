@@ -241,8 +241,10 @@ class HeatBatchQrView(LoginRequiredMixin, View):
 
     def get(self, request, batch_no):
         batch = get_object_or_404(HeatBatch, batch_no=batch_no.upper())
+        # No caption inside the image: the batch number is already printed
+        # beside it, and leaving it out spends the whole box on the code.
         return HttpResponse(
-            barcode.render_qr_svg(batch, request), content_type="image/svg+xml"
+            barcode.render_qr_svg(batch, request, caption=False), content_type="image/svg+xml"
         )
 
 

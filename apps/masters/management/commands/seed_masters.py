@@ -59,7 +59,9 @@ RACK_ZONES = [
 # transactions into a Heat Batch numbered B001, B002 ...; the pattern lives
 # in the master table so it can be changed without a deployment.
 BATCH_NO_FORMATS = [
-    {"process_slug": "heat_treatment", "regex": r"^B\d{3}$", "prefix": "B", "pad": 3},
+    # Three digits is the shape the business asked for (B001); the pattern
+    # allows more so the series does not stop dead at B999.
+    {"process_slug": "heat_treatment", "regex": r"^B\d{3,}$", "prefix": "B", "pad": 3},
 ]
 
 # Official Traveller Type Master. Row 17 and 63 both read "RE2 UDR" in the

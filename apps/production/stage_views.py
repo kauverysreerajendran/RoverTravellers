@@ -22,7 +22,6 @@ class StageCreateView(LoginRequiredMixin, CreateView):
     page_title = ""
     list_url_name = ""
     complete_url_name = ""
-    checklist = []
 
     @property
     def process(self):
@@ -94,8 +93,6 @@ class StageCreateView(LoginRequiredMixin, CreateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["page_title"] = f"New {self.page_title}"
-        ctx["checklist"] = self.checklist
-        ctx["checklist_title"] = f"{self.page_title} Process"
         ctx["incoming"] = self.incoming
         ctx["received_weight"] = self.incoming.output_weight
         return ctx
@@ -172,7 +169,6 @@ class StageCompleteView(LoginRequiredMixin, View):
             "form": form,
             "stage": self.stage,
             "page_title": f"Complete {self.page_title} {self.operation.transaction_number}",
-            "page_subtitle": "Complete table - review auto-populated data and record completion values",
             "detail_url_name": self.detail_url_name,
             "list_url_name": self.list_url_name,
             "breadcrumbs": [

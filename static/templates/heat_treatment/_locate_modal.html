@@ -1,11 +1,14 @@
 {% comment %}
 "Locate me": find a furnace load from anywhere in the app.
 
-Two ways in. *Find* searches batches by number, by any wire serial in the
-load or by any traveller type in it, and lists the completed ones - the
-same set the Heat Treatment Complete Table shows, because the API reads
-that table's own queryset. *Scan* opens the camera on a phone or laptop
-and follows a Rover label; anything else is refused rather than followed.
+One box. Type a batch number, a wire serial or a traveller type and the
+matches appear; a single match opens itself, and Enter takes the first
+one, so a hand scanner that types and presses Enter lands straight on the
+batch. Scanning the QR itself types its URL into the box - that is
+recognised and followed, rather than searched for.
+
+There is no camera here on purpose: a phone reads the printed label with
+its own camera app and opens the link.
 
 Rendered only for signed-in users; the JS lives in static/js/rover.js.
 {% endcomment %}
@@ -19,39 +22,18 @@ Rendered only for signed-in users; the JS lives in static/js/rover.js.
       </div>
 
       <div class="modal-body">
-        <ul class="nav process-tabs mb-3" role="tablist">
-          <li><button class="process-tab active" id="locateFindTab" data-bs-toggle="tab"
-                      data-bs-target="#locateFind" type="button" role="tab">
-            <i class="bi bi-search"></i> Find</button></li>
-          <li><button class="process-tab" id="locateScanTab" data-bs-toggle="tab"
-                      data-bs-target="#locateScan" type="button" role="tab">
-            <i class="bi bi-upc-scan"></i> Scan</button></li>
-        </ul>
+        <label class="search-box mb-1">
+          <i class="bi bi-search"></i>
+          <input type="search" id="locateSearch" autocomplete="off"
+                 placeholder="Scan a label, or type a batch no (B001), wire serial or traveller type...">
+        </label>
+        <div class="form-text mb-3">
+          Scanning the printed QR with a phone camera opens the batch directly.
+          A hand scanner can type the batch number here and press Enter.
+        </div>
 
-        <div class="tab-content">
-          <div class="tab-pane fade show active" id="locateFind" role="tabpanel">
-            <label class="search-box mb-3">
-              <i class="bi bi-search"></i>
-              <input type="search" id="locateSearch" autocomplete="off"
-                     placeholder="Batch no (B001), wire serial or traveller type...">
-            </label>
-            <div class="locate-list" id="locateList">
-              <div class="text-muted small py-2">Loading completed batches...</div>
-            </div>
-          </div>
-
-          <div class="tab-pane fade" id="locateScan" role="tabpanel">
-            <div id="locateReader" class="locate-reader"></div>
-            <div class="d-flex gap-2 mt-2">
-              <button type="button" class="btn btn-primary btn-sm" id="locateScanStart">
-                <i class="bi bi-camera me-1"></i> Start camera
-              </button>
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="locateScanStop" hidden>Stop</button>
-            </div>
-            <div class="small text-muted mt-2" id="locateScanNote">
-              Point the camera at a batch label. Labels from anywhere else are ignored.
-            </div>
-          </div>
+        <div class="locate-list" id="locateList">
+          <div class="text-muted small py-2 px-2">Loading completed batches...</div>
         </div>
 
         <div class="locate-detail mt-3" id="locateDetail" hidden></div>

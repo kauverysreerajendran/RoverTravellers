@@ -2,7 +2,7 @@
 {% block title %}{{ page_title }}{% endblock %}
 {% block content %}
 <div class="row g-3">
-  <div class="col-lg-8">
+  <div class="col-lg-8 mx-auto">
     <div class="card">
       <div class="card-body">
         <form method="post" novalidate>
@@ -40,17 +40,5 @@
       </div>
     </div>
   </div>
-  {% if checklist %}
-  <div class="col-lg-4">
-    <div class="info-panel">
-      <h6><i class="bi bi-info-circle-fill"></i> {{ checklist_title }}</h6>
-      <ul>
-        {% for item in checklist %}
-          <li><i class="bi bi-check-circle-fill"></i> {{ item }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-  </div>
-  {% endif %}
 </div>
 {% endblock %}
