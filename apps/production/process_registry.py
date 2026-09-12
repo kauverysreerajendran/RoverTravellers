@@ -88,7 +88,6 @@ class ProcessConfig:
     # identity). The Main Table is built from these, then everything the
     # previous process recorded, then this process's own columns.
     identity_columns = ()
-    complete_columns = ()
     create_url_name = ""
     create_label = ""
     # Button offered on an incoming row from the previous process.
@@ -203,26 +202,36 @@ class ProcessConfig:
     # `previous_record` - so a sixth process inherits its predecessor's
     # columns without a line of code.
     # ------------------------------------------------------------------
-    @property
-    def inherited_columns(self):
+    def _inherited(self, own):
+        """The previous process's Complete Table columns, rewritten to be
+        readable from a row of this process. Anything this table already
+        shows under the same name is left out, so nothing appears twice."""
         previous = self.previous
         if previous is None:
             return ()
-        shown = {column.label for column in (*self.identity_columns, *self.own_columns)}
+        shown = {column.label for column in (*self.identity_columns, *own)}
         inherited = []
-        for column in previous.complete_columns:
+        for column in previous.own_complete_columns:
             if column.label in shown or column.kind == "status" or not column.accessor:
                 continue
+            # Deduplicated on the bare name, so a figure this process
+            # records itself is never shown twice - but headed with where
+            # it came from, because "Machine" on the Heat Treatment table
+            # is the Forming machine, not a machine of this process.
             shown.add(column.label)
             inherited.append(
                 Column(
-                    column.label,
+                    f"{previous.label} · {column.label}",
                     accessor=f"previous_record.{column.accessor}",
                     pending=column.accessor,
                     kind=column.kind,
                 )
             )
         return tuple(inherited)
+
+    @property
+    def inherited_columns(self):
+        return self._inherited(self.own_columns)
 
     # Columns this process shows in its own right; `inherited_columns`
     # skips anything already named here, so nothing appears twice.
@@ -235,6 +244,20 @@ class ProcessConfig:
         else (the origin process, which is handed nothing) overrides this
         with a plain tuple."""
         return (*self.identity_columns, *self.inherited_columns, *self.own_columns)
+
+    # What this process records itself once the work is done. The Complete
+    # Table is this plus what it was handed, for the same reason the Main
+    # Table is: a finished Heat Treatment row is only half the story
+    # without the Forming values behind it.
+    own_complete_columns = ()
+
+    @property
+    def complete_columns(self):
+        return (
+            *self.identity_columns,
+            *self._inherited(self.own_complete_columns),
+            *self.own_complete_columns,
+        )
 
     # ------------------------------------------------------------------
     # Incoming rows - material the previous process completed and this
@@ -367,7 +390,7 @@ class RollingProcess(ProcessConfig):
         Column("Status", "status", kind="status", order_by="status"),
     )
 
-    complete_columns = (
+    own_complete_columns = (
         Column("Wire Serial", "wire_serial", strong=True, order_by="wire_serial"),
         Column("Traveller Type", "traveller_type.name", order_by="traveller_type__name"),
         Column("Traveller No", "traveller_no.code"),
@@ -443,8 +466,7 @@ class FormingProcess(StageProcess):
         *StageProcess.weight_columns,
     )
 
-    complete_columns = (
-        *StageProcess.identity_columns,
+    own_complete_columns = (
         Column("Surface Finish", "surface_finish.finish_name"),
         Column("Machine", "machine.code"),
         Column("Date", "operation_date", kind="date"),
@@ -480,8 +502,7 @@ class HeatTreatmentProcess(StageProcess):
 
     own_columns = (batch_column, *StageProcess.weight_columns)
 
-    complete_columns = (
-        *StageProcess.identity_columns,
+    own_complete_columns = (
         batch_column,
         barcode_column,
         Column("Surface Finish", "surface_finish.finish_name"),
@@ -527,8 +548,7 @@ class FinishingProcess(StageProcess):
     search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "batch_no", "colour")
     search_placeholder = "Search wire serial, batch no, colour..."
 
-    complete_columns = (
-        *StageProcess.identity_columns,
+    own_complete_columns = (
         Column("Batch No", "batch_no"),
         Column("Surface Finish", "surface_finish.finish_name"),
         Column("Colour", "colour"),
@@ -570,8 +590,7 @@ class FinishedGoodsProcess(ProcessConfig):
     identity_columns = IDENTITY_COLUMNS
     own_columns = (received_weight_column, STATUS_COLUMN)
 
-    complete_columns = (
-        *IDENTITY_COLUMNS,
+    own_complete_columns = (
         RACK_SLOT_COLUMN,
         received_weight_column,
         Column("Output Weight (kg)", "accepted_quantity", kind="number", order_by="accepted_quantity"),

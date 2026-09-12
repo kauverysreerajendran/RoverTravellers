@@ -68,23 +68,25 @@ class ProcessRegistryTests(TestCase):
                     [column.label for column in process.complete_columns],
                 )
 
-    def test_a_main_table_carries_what_the_previous_process_recorded(self):
-        """Material waiting here *is* the previous process's completed
-        work, so its Complete Table columns appear here - the operator
-        should not have to go back a screen to see what they were handed."""
+    def test_both_tables_carry_what_the_previous_process_recorded(self):
+        """Material here *is* the previous process's completed work, so its
+        columns appear on both of this process's tables - the operator
+        should not have to go back a screen to see what they were handed.
+        They are headed with where they came from, and a figure this
+        process records itself is not repeated."""
         for process in PROCESSES:
             previous = process.previous
             if previous is None:
                 continue
-            with self.subTest(process=process.slug):
-                main = [column.label for column in process.main_columns]
-                for column in previous.complete_columns:
-                    if column.kind == "status" or not column.accessor:
+            for table in ("main_columns", "complete_columns"):
+                own = getattr(process, "own_columns" if table == "main_columns" else "own_complete_columns")
+                own_labels = {column.label for column in (*process.identity_columns, *own)}
+                shown = [column.label for column in getattr(process, table)]
+                for column in previous.own_complete_columns:
+                    if column.kind == "status" or not column.accessor or column.label in own_labels:
                         continue
-                    self.assertIn(
-                        column.label, main,
-                        f"{process.label} does not show {previous.label}'s {column.label}",
-                    )
+                    with self.subTest(process=process.slug, table=table, column=column.label):
+                        self.assertIn(f"{previous.label} · {column.label}", shown)
 
     def test_weight_labels_follow_the_agreed_convention(self):
         """The weight a process is handed reads "Received Weight"; its own
