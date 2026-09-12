@@ -1,0 +1,13 @@
+{% comment %}
+In-page switch between the racks: the raw-material coil bay first, then one
+tab per active storage zone (Forming, Finished Goods). The tabs come from
+`rack_tabs()` in apps/masters/views.py, so a zone added to the database
+appears here without a template change.
+{% endcomment %}
+<div class="process-tabs mb-3">
+  {% for tab in rack_tabs %}
+  <a href="{{ tab.url }}" class="process-tab{% if tab.active %} active{% endif %}">
+    <i class="bi bi-grid-3x3-gap"></i> {{ tab.label }}
+  </a>
+  {% endfor %}
+</div>

@@ -11,21 +11,22 @@ class FinishedGoodsReceiveForm(forms.Form):
     product = forms.ModelChoiceField(queryset=None)
     accepted_quantity = forms.DecimalField(max_digits=14, decimal_places=3, min_value=0)
     rejected_quantity = forms.DecimalField(max_digits=14, decimal_places=3, min_value=0, initial=0)
-    location = forms.ModelChoiceField(queryset=None)
-    rack = forms.ModelChoiceField(queryset=None, required=False)
-    shelf = forms.ModelChoiceField(queryset=None, required=False)
-    tray = forms.ModelChoiceField(queryset=None, required=False)
+    # Stock is located by its slot on the Finished Goods rack zone; the old
+    # location / rack / shelf / tray fields are gone from this form. The
+    # queryset is narrowed to the zone, so a hand-posted id cannot place
+    # the stock on another zone's rack.
+    rack_slot = forms.ModelChoiceField(queryset=None, required=False, widget=forms.HiddenInput)
     remarks = forms.CharField(widget=forms.Textarea, required=False)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, zone=None, **kwargs):
         super().__init__(*args, **kwargs)
-        from apps.master_data.models import Location, ProductMaster, Rack, Shelf, Tray
+        from apps.master_data.models import ProductMaster
+        from apps.masters.models import RackSlot
 
         self.fields["product"].queryset = ProductMaster.active.all()
-        self.fields["location"].queryset = Location.active.filter(location_type="fg")
-        self.fields["rack"].queryset = Rack.active.all()
-        self.fields["shelf"].queryset = Shelf.active.all()
-        self.fields["tray"].queryset = Tray.active.all()
+        self.fields["rack_slot"].queryset = (
+            RackSlot.objects.filter(zone=zone) if zone is not None else RackSlot.objects.none()
+        )
         for name, field in self.fields.items():
             css = "form-check-input" if isinstance(field.widget, forms.CheckboxInput) else (
                 "form-select" if isinstance(field.widget, forms.Select) else "form-control"

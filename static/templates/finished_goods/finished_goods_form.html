@@ -26,13 +26,27 @@
           {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
           <div class="row g-3">
             {% for field in form %}
+              {% if field.is_hidden %}
+                {% if field.name != picker.field %}{{ field }}{% endif %}
+              {% else %}
               <div class="col-md-6">
                 <label class="form-label">{{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}</label>
                 {{ field }}
                 {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
               </div>
+              {% endif %}
             {% endfor %}
           </div>
+
+          {% if picker %}
+          <hr class="my-4">
+          <div class="section-title mb-2">
+            <h6>Place on {{ picker.zone.name }}</h6>
+            <p>Received stock is stored here. The next free slot is selected; click another empty slot to change it.</p>
+          </div>
+          {% include "masters/_slot_picker.html" %}
+          {% if form.rack_slot.errors %}<div class="text-danger small mt-1">{{ form.rack_slot.errors.0 }}</div>{% endif %}
+          {% endif %}
           <div class="mt-4 d-flex gap-2">
             <button type="submit" class="btn btn-success"><i class="bi bi-check2-circle"></i> Complete</button>
             <a href="{% url 'finished_goods:list' %}" class="btn btn-link">Cancel</a>

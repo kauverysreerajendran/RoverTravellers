@@ -9,7 +9,27 @@ from django.views.generic import TemplateView
 
 from . import services
 from .forms import CoilReceiveForm
-from .models import CoilMaster, DiameterMaster, RackMaster
+from .models import CoilMaster, DiameterMaster, RackMaster, RackZone
+
+
+def rack_tabs(active=""):
+    """The Rack screen's tab strip: the raw-material coil bay first, then one
+    tab per active storage zone. Zones are read from the database, so a new
+    zone appears here without touching this view."""
+    tabs = [{
+        "code": "",
+        "label": "Raw Material",
+        "url": reverse("masters:rack_locator"),
+        "active": not active,
+    }]
+    for zone in RackZone.objects.filter(is_active=True).order_by("code"):
+        tabs.append({
+            "code": zone.code,
+            "label": zone.name,
+            "url": reverse("masters:rack_zone", kwargs={"code": zone.code}),
+            "active": active == zone.code,
+        })
+    return tabs
 
 
 class RackLocatorView(LoginRequiredMixin, TemplateView):
@@ -43,6 +63,7 @@ class RackLocatorView(LoginRequiredMixin, TemplateView):
             occupied += len(coils)
 
         ctx.update({
+            "rack_tabs": rack_tabs(),
             "page_title": "Rack",
             "page_subtitle": "Locate coils and find empty rack space",
             "page_icon": "bi-grid-3x3-gap",
@@ -52,6 +73,26 @@ class RackLocatorView(LoginRequiredMixin, TemplateView):
             "total_slots": total_slots,
             "occupied": occupied,
             "empty": max(total_slots - occupied, 0),
+        })
+        return ctx
+
+
+class RackZoneView(LoginRequiredMixin, TemplateView):
+    """One storage zone: every rack as a real grid of slots, occupied and
+    empty alike, searchable by wire serial, traveller type or slot label."""
+
+    template_name = "masters/rack_zone.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        zone = get_object_or_404(RackZone, code=self.kwargs["code"], is_active=True)
+        summary = services.zone_summary(zone)
+        ctx.update(summary)
+        ctx.update({
+            "rack_tabs": rack_tabs(zone.code),
+            "page_title": "Rack",
+            "page_subtitle": f"{zone.name} - locate material and find empty slots",
+            "page_icon": "bi-grid-3x3-gap",
         })
         return ctx
 

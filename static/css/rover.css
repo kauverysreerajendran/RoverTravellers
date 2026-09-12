@@ -514,6 +514,19 @@ a { color: var(--rover-red); }
 .slot-filled.is-dim { opacity: .35; }
 .slot-empty { border: 1px dashed #cfd3db; color: var(--rover-muted); display: flex; align-items: center; justify-content: center; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; font-size: .68rem; }
 
+/* Fixed rows x columns slot grid for the storage zones (Forming, Finished
+   Goods). One leading column carries the row letters, so the grid is
+   `1 axis column + zone.columns` wide. */
+.slot-grid-matrix { display: grid; grid-template-columns: 1.25rem repeat(var(--slot-columns, 5), 1fr); gap: .35rem; }
+.slot-grid-matrix .slot { min-height: 54px; padding: .35rem .4rem; font-size: .7rem; overflow: hidden; }
+.slot-grid-matrix .slot-empty { font-size: .62rem; letter-spacing: 0; }
+.slot-grid-matrix .slot-id { font-size: .62rem; }
+.slot-axis { display: flex; align-items: center; justify-content: center; font-size: .65rem; font-weight: 700; color: var(--rover-muted); }
+.slot.is-selectable { cursor: pointer; }
+.slot.is-selectable:hover { border-color: var(--rover-red); color: var(--rover-red); }
+.slot.is-picked { background: var(--rover-red-tint); border: 1px solid var(--rover-red); color: var(--rover-red); border-style: solid; }
+.slot-picker-racks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .75rem; max-height: 420px; overflow-y: auto; }
+
 /* Process stepper (Forming onward) */
 .stepper { display: flex; align-items: flex-start; overflow-x: auto; padding: .5rem 0; }
 .stepper-step { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 110px; position: relative; }

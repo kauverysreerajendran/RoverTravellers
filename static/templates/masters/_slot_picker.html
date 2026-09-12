@@ -1,0 +1,82 @@
+{% comment %}
+Slot picker for a storage zone, shared by the Rolling completion form and
+the Finished Goods receive form. Expects `picker` from
+`masters.services.slot_picker(zone)`: every slot of the zone as a real
+grid cell, with the next free slot pre-selected and empty slots clickable.
+The chosen slot posts as `picker.field`; when nothing is clicked the
+pre-selected slot is submitted.
+{% endcomment %}
+{% if picker %}
+<div class="slot-picker" id="slotPicker">
+  <input type="hidden" name="{{ picker.field }}" id="slotPickerInput"
+         value="{% if picker.selected %}{{ picker.selected.pk }}{% endif %}">
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <span class="text-muted small">Place on {{ picker.zone.name }}:</span>
+    <span class="pill pill-completed" id="slotPickerLabel">{{ picker.selected.label|default:"No empty slot" }}</span>
+    <span class="stat-chips ms-auto">
+      <span class="stat-chip">Empty<strong class="text-success">{{ picker.summary.empty }}</strong></span>
+      <span class="stat-chip">Occupied<strong>{{ picker.summary.occupied }}</strong></span>
+    </span>
+  </div>
+
+  {% if picker.summary.empty == 0 %}
+  <div class="alert alert-danger py-2 small mb-2">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    {{ picker.zone.name }} is full. Free a slot before completing this material.
+  </div>
+  {% endif %}
+
+  <div class="slot-picker-racks">
+    {% for r in picker.summary.racks %}
+    <div class="rack-card">
+      <div class="rack-head">
+        <div><i class="bi bi-grid-3x3-gap"></i><strong>{{ r.rack.code }}</strong></div>
+        <span class="pill {% if r.empty == 0 %}pill-pending{% else %}pill-neutral{% endif %}">{{ r.occupied }} / {{ r.capacity }}</span>
+      </div>
+      <div class="slot-grid-matrix mt-2" style="--slot-columns: {{ picker.zone.columns }}">
+        <div class="slot-axis"></div>
+        {% for column in picker.summary.columns %}<div class="slot-axis">{{ column }}</div>{% endfor %}
+        {% for row in r.matrix %}
+          <div class="slot-axis">{{ row.letter }}</div>
+          {% for cell in row.cells %}
+            {% if cell.empty %}
+              <div class="slot slot-empty is-selectable{% if picker.selected and cell.slot.pk == picker.selected.pk %} is-picked{% endif %}"
+                   role="button" tabindex="0"
+                   data-slot-id="{{ cell.slot.pk }}" data-slot-label="{{ cell.label }}">{{ cell.label }}</div>
+            {% else %}
+              <div class="slot slot-filled" title="{{ cell.wire_serial }} · {{ cell.traveller_type }}">
+                <div class="slot-title">{{ cell.wire_serial|default:"-" }}</div>
+                <div class="slot-id">{{ cell.label }}</div>
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+(function () {
+  var input = document.getElementById("slotPickerInput");
+  var label = document.getElementById("slotPickerLabel");
+  var slots = Array.prototype.slice.call(document.querySelectorAll("#slotPicker .is-selectable"));
+
+  function pick(slot) {
+    slots.forEach(function (s) { s.classList.remove("is-picked"); });
+    slot.classList.add("is-picked");
+    input.value = slot.getAttribute("data-slot-id");
+    label.textContent = slot.getAttribute("data-slot-label");
+  }
+
+  slots.forEach(function (slot) {
+    slot.addEventListener("click", function () { pick(slot); });
+    slot.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pick(slot); }
+    });
+  });
+})();
+</script>
+{% endif %}

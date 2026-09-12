@@ -11,6 +11,7 @@ from django.views.generic import DetailView
 
 from apps.masters import services as masters_services
 from apps.masters.models import TravellerType
+from apps.production.process_registry import process_for_record
 
 from . import services
 from .forms import RollingCompleteForm, RollingInitiateForm
@@ -86,6 +87,7 @@ class RollingDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         batch = self.object
+        zone = masters_services.zone_for_process(process_for_record(batch))
         ctx.update({
             "page_title": f"Rolling Batch {batch.wire_serial}",
             "page_subtitle": f"{batch.traveller_type.name} · {batch.finish.finish_name} · {batch.wire_diameter_mm} mm",
@@ -96,7 +98,9 @@ class RollingDetailView(LoginRequiredMixin, DetailView):
             ],
             "coils_used": batch.coils_used.select_related("coil", "coil__rack", "coil__raw_material"),
             "can_complete": self.request.user.can_approve(),
-            "complete_form": RollingCompleteForm(),
+            "complete_form": RollingCompleteForm(zone=zone),
+            "picker": masters_services.slot_picker(zone),
+            "placement": batch.rack_placement,
         })
         return ctx
 
@@ -104,11 +108,17 @@ class RollingDetailView(LoginRequiredMixin, DetailView):
 class RollingCompleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         batch = get_object_or_404(RollingBatch, pk=pk)
-        form = RollingCompleteForm(request.POST)
+        zone = masters_services.zone_for_process(process_for_record(batch))
+        form = RollingCompleteForm(request.POST, zone=zone)
         if form.is_valid():
             try:
                 services.complete_rolling_batch(batch, user=request.user, **form.cleaned_data)
-                messages.success(request, f"Rolling batch {batch.wire_serial} completed.")
+                placed = batch.rack_slot_label
+                messages.success(
+                    request,
+                    f"Rolling batch {batch.wire_serial} completed."
+                    + (f" Wire placed on {placed}." if placed else ""),
+                )
             except (ValidationError, PermissionDenied) as exc:
                 detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
                 messages.error(request, detail)

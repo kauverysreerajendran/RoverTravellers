@@ -108,7 +108,8 @@ def initiate_rolling_batch(*, traveller_type, traveller_no, finish, required_box
 
 
 @transaction.atomic
-def complete_rolling_batch(batch, *, rolled_thickness_mm, rolled_width_mm, finished_weight_kg, user):
+def complete_rolling_batch(batch, *, rolled_thickness_mm, rolled_width_mm, finished_weight_kg, user,
+                           rack_slot=None):
     if not user.can_approve():
         raise PermissionDenied("You are not authorized to complete a rolling batch.")
     if batch.status == "Completed":
@@ -119,6 +120,10 @@ def complete_rolling_batch(batch, *, rolled_thickness_mm, rolled_width_mm, finis
     batch.rolled_thickness_mm = rolled_thickness_mm
     batch.rolled_width_mm = rolled_width_mm
     batch.finished_weight_kg = finished_weight_kg
+    # The rolled wire goes onto a slot of the storage zone that follows
+    # Rolling; `handover` reads the operator's choice from here and falls
+    # back to the next free slot when nothing was picked.
+    batch._rack_slot = rack_slot
 
     # `handover` stamps the status, completion time and wastage, stages the
     # output as WIP for whichever process follows Rolling in the registry

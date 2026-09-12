@@ -287,6 +287,12 @@ RECEIVED_WEIGHT_COLUMN = Column(
 
 STATUS_COLUMN = Column("Status", "status", kind="status", order_by="status")
 
+# Where the material is physically sitting. `rack_slot_label` is part of the
+# handover contract (apps/production/handover.py), so one accessor serves a
+# real row and an incoming row from the previous process alike, and only the
+# processes that actually place material on a rack ever fill it.
+RACK_SLOT_COLUMN = Column("Rack Slot", "rack_slot_label", pending="rack_slot_label")
+
 
 # ----------------------------------------------------------------------
 # P1 - Rolling (origin process: own wire-serial / coil module)
@@ -332,6 +338,7 @@ class RollingProcess(ProcessConfig):
         Column("Rolled Width (mm)", "rolled_width_mm", kind="number"),
         Column("Output Weight (kg)", "finished_weight_kg", kind="number", order_by="finished_weight_kg"),
         Column("Wastage (kg)", "wastage_kg", kind="number"),
+        RACK_SLOT_COLUMN,
         Column("Status", "status", kind="status", order_by="status"),
     )
 
@@ -388,6 +395,7 @@ class FormingProcess(StageProcess):
     main_columns = (
         *StageProcess.identity_columns,
         Column("Surface Finish", "surface_finish.finish_name", pending="surface_finish.finish_name"),
+        RACK_SLOT_COLUMN,
         *StageProcess.weight_columns,
     )
 
@@ -470,7 +478,7 @@ class FinishedGoodsProcess(ProcessConfig):
     label = "Finished Goods"
     icon = "bi-box-seam"
     model_path = "inventory.FinishedGoodsStock"
-    select_related = ("lot", "lot__source_rolling_batch__traveller_type", "location", "rack", "shelf")
+    select_related = ("lot", "lot__source_rolling_batch__traveller_type")
     search_fields = ("fg_lot_number", "lot__source_rolling_batch__wire_serial", "product__product_code")
     search_placeholder = "Search wire serial, FG lot, product..."
     create_url_name = "finished_goods:receive"
@@ -495,9 +503,7 @@ class FinishedGoodsProcess(ProcessConfig):
 
     complete_columns = (
         *IDENTITY_COLUMNS,
-        Column("Location", "location.code"),
-        Column("Rack", "rack.code"),
-        Column("Shelf", "shelf.code"),
+        RACK_SLOT_COLUMN,
         received_weight_column,
         Column("Output Weight (kg)", "accepted_quantity", kind="number", order_by="accepted_quantity"),
         STATUS_COLUMN,

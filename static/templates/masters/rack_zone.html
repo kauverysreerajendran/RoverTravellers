@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ zone.name }}{% endblock %}
+{% block content %}
+
+{% include "masters/_rack_tabs.html" %}
+
+<div class="toolbar">
+  <label class="search-box" style="max-width:560px">
+    <i class="bi bi-search"></i>
+    <input type="search" id="rackSearch"
+           placeholder="Locate: type a wire serial (SB110), traveller type or slot ({{ racks.0.rack.code }}-A1)..."
+           autocomplete="off">
+  </label>
+  <div class="stat-chips ms-auto">
+    <span class="stat-chip">Racks<strong>{{ total_racks }}</strong></span>
+    <span class="stat-chip">Slots<strong>{{ total_slots }}</strong></span>
+    <span class="stat-chip">Occupied<strong>{{ occupied }}</strong></span>
+    <span class="stat-chip">Empty<strong class="text-success">{{ empty }}</strong></span>
+  </div>
+</div>
+
+<div class="locate-results" id="locateResults" hidden></div>
+
+{% if racks %}
+<div class="rack-grid" id="rackGrid">
+  {% for r in racks %}
+  <div class="rack-card" data-rack="{{ r.rack.code|lower }}">
+    <div class="rack-head">
+      <div><i class="bi bi-grid-3x3-gap"></i><strong>{{ r.rack.code }}</strong></div>
+      <span class="pill {% if r.empty == 0 %}pill-pending{% else %}pill-neutral{% endif %}">{{ r.occupied }} / {{ r.capacity }}</span>
+    </div>
+    <div class="rack-bar"><span style="width:{{ r.pct }}%"></span></div>
+
+    <div class="slot-grid-matrix" style="--slot-columns: {{ zone.columns }}">
+      <div class="slot-axis"></div>
+      {% for column in columns %}<div class="slot-axis">{{ column }}</div>{% endfor %}
+      {% for row in r.matrix %}
+        <div class="slot-axis">{{ row.letter }}</div>
+        {% for cell in row.cells %}
+          {% if cell.empty %}
+            <div class="slot slot-empty" data-label="{{ cell.label }}">{{ cell.label }}</div>
+          {% else %}
+            <div class="slot slot-filled"
+                 data-search="{{ cell.wire_serial|lower }} {{ cell.traveller_type|lower }} {{ cell.label|lower }}"
+                 data-label="{{ cell.wire_serial }} · {{ cell.traveller_type }}{% if cell.weight %} · {{ cell.weight }} kg{% endif %}"
+                 data-rack="{{ r.rack.code }}"
+                 data-slot="{{ cell.label }}">
+              <div class="slot-title">{{ cell.wire_serial|default:"-" }}</div>
+              <div class="slot-sub">{{ cell.traveller_type|default:"-" }}</div>
+              <div class="slot-id">{{ cell.label }}{% if cell.weight %} · {{ cell.weight }} kg{% endif %}</div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="section-card text-center text-muted py-5">
+  No racks configured for {{ zone.name }} yet. Run <code>python manage.py seed_masters</code> to build them.
+</div>
+{% endif %}
+
+<script>
+(function () {
+  var input = document.getElementById("rackSearch");
+  var results = document.getElementById("locateResults");
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".rack-card"));
+
+  function locate() {
+    var needle = input.value.trim().toLowerCase();
+    var hits = [];
+
+    document.querySelectorAll(".slot-filled").forEach(function (s) { s.classList.remove("is-match", "is-dim"); });
+    cards.forEach(function (c) { c.classList.remove("is-match"); c.hidden = false; });
+
+    if (!needle) { results.hidden = true; results.innerHTML = ""; return; }
+
+    cards.forEach(function (card) {
+      var rackMatch = card.getAttribute("data-rack").indexOf(needle) !== -1;
+      var anySlot = false;
+      card.querySelectorAll(".slot-filled").forEach(function (slot) {
+        if (slot.getAttribute("data-search").indexOf(needle) !== -1) {
+          anySlot = true;
+          slot.classList.add("is-match");
+          hits.push({ label: slot.getAttribute("data-label"), slot: slot.getAttribute("data-slot") });
+        } else if (!rackMatch) {
+          slot.classList.add("is-dim");
+        }
+      });
+      card.classList.toggle("is-match", rackMatch || anySlot);
+      card.hidden = !(rackMatch || anySlot);
+    });
+
+    results.hidden = false;
+    if (!hits.length) {
+      results.innerHTML = '<div class="text-muted"><i class="bi bi-search me-1"></i> Nothing matches "' + input.value.trim() + '".</div>';
+      return;
+    }
+    results.innerHTML = hits.map(function (h) {
+      return '<div class="hit"><i class="bi bi-geo-alt-fill"></i><span>' + h.label +
+             '</span><span class="to"><i class="bi bi-arrow-right me-1"></i>Slot ' + h.slot + '</span></div>';
+    }).join("");
+  }
+
+  input.addEventListener("input", locate);
+  input.focus();
+})();
+</script>
+{% endblock %}

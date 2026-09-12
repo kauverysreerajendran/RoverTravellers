@@ -7,6 +7,7 @@ from django.views import View
 from django.views.generic import DetailView
 
 from apps.inventory.models import FinishedGoodsStock
+from apps.masters import services as rack_services
 from apps.production.models import ProductionLot
 from apps.production.process_registry import get_process
 from apps.production.services import incoming_record_for
@@ -25,6 +26,11 @@ class FinishedGoodsReceiveView(LoginRequiredMixin, View):
     @property
     def process(self):
         return get_process("finished_goods")
+
+    @property
+    def zone(self):
+        """The rack zone received stock is placed on."""
+        return rack_services.zone_for_process(self.process)
 
     def main_table_url(self):
         return reverse("process:main", kwargs={"process": self.process.slug})
@@ -59,18 +65,15 @@ class FinishedGoodsReceiveView(LoginRequiredMixin, View):
         if lot is None:
             return redirect(self.main_table_url())
         form = FinishedGoodsReceiveForm(
-            initial={"lot": lot.pk, "accepted_quantity": incoming.output_weight}
+            zone=self.zone, initial={"lot": lot.pk, "accepted_quantity": incoming.output_weight}
         )
-        return render(
-            request, self.template_name,
-            {"form": form, "page_title": "Receive Finished Goods", "auto": self._auto(lot, incoming)},
-        )
+        return render(request, self.template_name, self._context(form, lot, incoming))
 
     def post(self, request):
         lot, incoming = self.resolve_incoming(request, request.POST.get("lot"))
         if lot is None:
             return redirect(self.main_table_url())
-        form = FinishedGoodsReceiveForm(request.POST)
+        form = FinishedGoodsReceiveForm(request.POST, zone=self.zone)
         if form.is_valid():
             try:
                 fg_stock = services.receive_finished_goods(
@@ -78,22 +81,29 @@ class FinishedGoodsReceiveView(LoginRequiredMixin, View):
                     product=form.cleaned_data["product"],
                     accepted_quantity=form.cleaned_data["accepted_quantity"],
                     rejected_quantity=form.cleaned_data["rejected_quantity"],
-                    location=form.cleaned_data["location"],
-                    rack=form.cleaned_data.get("rack"),
-                    shelf=form.cleaned_data.get("shelf"),
-                    tray=form.cleaned_data.get("tray"),
+                    rack_slot=form.cleaned_data.get("rack_slot"),
                     user=request.user,
                     remarks=form.cleaned_data.get("remarks", ""),
                 )
-                messages.success(request, f"Finished goods {fg_stock.fg_lot_number} received and on hold for QC.")
+                placed = fg_stock.rack_slot_label
+                messages.success(
+                    request,
+                    f"Finished goods {fg_stock.fg_lot_number} received and on hold for QC."
+                    + (f" Placed on {placed}." if placed else ""),
+                )
                 return redirect("finished_goods:detail", pk=fg_stock.pk)
             except (ValidationError, PermissionDenied) as exc:
                 detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
                 messages.error(request, detail)
-        return render(
-            request, self.template_name,
-            {"form": form, "page_title": "Receive Finished Goods", "auto": self._auto(lot, incoming)},
-        )
+        return render(request, self.template_name, self._context(form, lot, incoming))
+
+    def _context(self, form, lot, incoming):
+        return {
+            "form": form,
+            "page_title": "Receive Finished Goods",
+            "auto": self._auto(lot, incoming),
+            "picker": rack_services.slot_picker(self.zone),
+        }
 
 
 class FinishedGoodsDetailView(LoginRequiredMixin, DetailView):
@@ -105,6 +115,8 @@ class FinishedGoodsDetailView(LoginRequiredMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["page_title"] = f"Finished Goods {self.object.fg_lot_number}"
         ctx["can_approve"] = self.request.user.can_approve()
+        ctx["placement"] = self.object.rack_placement
+        ctx["can_operate"] = self.request.user.can_operate_stage(get_process("finished_goods").slug)
         return ctx
 
 

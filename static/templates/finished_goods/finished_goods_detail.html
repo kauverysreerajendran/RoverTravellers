@@ -8,7 +8,15 @@
       <dt class="col-5">Product</dt><dd class="col-7">{{ item.product }}</dd>
       <dt class="col-5">Wire Serial</dt><dd class="col-7">{{ item.lot.wire_serial|default:"-" }}</dd>
       <dt class="col-5">Traveller No</dt><dd class="col-7">{{ item.lot.traveller_no|default:"-" }}</dd>
-      <dt class="col-5">Location</dt><dd class="col-7">{{ item.location }} {% if item.rack %}/ {{ item.rack }}{% endif %} {% if item.shelf %}/ {{ item.shelf }}{% endif %}</dd>
+      <dt class="col-5">Rack</dt>
+      <dd class="col-7">
+        {% if placement %}
+          {{ placement.slot.label }}
+          <div class="text-muted">placed {{ placement.placed_at|date:"d M Y H:i" }}{% if placement.placed_by %} by {{ placement.placed_by.get_full_name|default:placement.placed_by.username }}{% endif %}</div>
+        {% else %}
+          Not on a rack
+        {% endif %}
+      </dd>
       <dt class="col-5">Accepted Qty</dt><dd class="col-7">{{ item.accepted_quantity }}</dd>
       <dt class="col-5">Rejected Qty</dt><dd class="col-7">{{ item.rejected_quantity }}</dd>
       <dt class="col-5">Status</dt><dd class="col-7"><span class="badge badge-status-{{ item.status }}">{{ item.status }}</span></dd>
@@ -24,6 +32,16 @@
     {% if item.status == "available" %}
     <form method="post" action="{% url 'finished_goods:hold' item.pk %}">{% csrf_token %}<button class="btn btn-warning btn-sm">Put On Hold</button></form>
     {% endif %}
+  </div>
+  {% endif %}
+  {% if placement and can_operate %}
+  <div class="card-footer bg-white">
+    <form method="post" action="{% url 'finished_goods:remove_from_rack' item.pk %}">
+      {% csrf_token %}
+      <button class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-box-arrow-up me-1"></i> Remove from rack ({{ placement.slot.label }})
+      </button>
+    </form>
   </div>
   {% endif %}
 </div>

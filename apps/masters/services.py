@@ -194,10 +194,35 @@ def release_lot(zone, lot, user, reason=""):
     return slot
 
 
+def _occupant_weights(zone, lots):
+    """lot pk -> the weight the placing process handed over, in two queries.
+
+    The weight shown on a slot is the output weight of the record that put
+    the material there, reached through the zone's process and its declared
+    `handover_lot_path` - so this works for Rolling's batches and for
+    Finished Goods stock without naming either.
+    """
+    process = zone.process
+    if process is None or not lots:
+        return {}
+    path = process.handover_lot_path
+    records = list(process.complete_queryset(None).filter(**{f"{path}__in": lots}))
+    if not records:
+        return {}
+    lot_by_record = dict(
+        process.model.objects.filter(pk__in=[record.pk for record in records]).values_list("pk", path)
+    )
+    return {
+        lot_by_record[record.pk]: record.output_weight
+        for record in records
+        if lot_by_record.get(record.pk)
+    }
+
+
 def zone_summary(zone):
     """Everything the zone screen renders, computed here so the template
-    does no arithmetic: each rack with its slot matrix (row-major, one
-    entry per grid position), plus occupancy counts."""
+    does no arithmetic: each rack with its slot matrix (one cell per grid
+    position, row-major), plus occupancy counts."""
     if zone is None:
         return None
 
@@ -206,6 +231,8 @@ def zone_summary(zone):
         .select_related("lot", "lot__source_rolling_batch", "lot__source_rolling_batch__traveller_type")
         .order_by("rack__position", "row", "column")
     )
+    weights = _occupant_weights(zone, [slot.lot_id for slot in slots if slot.lot_id])
+
     by_rack = {}
     for slot in slots:
         by_rack.setdefault(slot.rack_id, []).append(slot)
@@ -215,7 +242,10 @@ def zone_summary(zone):
         rack_slots = by_rack.get(rack.rack_id, [])
         filled = sum(1 for slot in rack_slots if slot.lot_id is not None)
         matrix = [
-            {"letter": row_letter(row), "slots": [s for s in rack_slots if s.row == row]}
+            {
+                "letter": row_letter(row),
+                "cells": [_slot_cell(slot, weights) for slot in rack_slots if slot.row == row],
+            }
             for row in range(1, zone.rows + 1)
         ]
         racks.append({
@@ -238,4 +268,34 @@ def zone_summary(zone):
         "occupied": occupied,
         "empty": total_slots - occupied,
         "pct": int(occupied / total_slots * 100) if total_slots else 0,
+    }
+
+
+def slot_picker(zone, *, field="rack_slot", selected=None):
+    """Everything the slot-picker partial needs: the zone's grid, the slot
+    the form will submit unless the operator clicks another one (the next
+    free slot), and the field name to post it under."""
+    if zone is None:
+        return None
+    return {
+        "field": field,
+        "zone": zone,
+        "summary": zone_summary(zone),
+        "selected": selected or next_free_slot(zone),
+    }
+
+
+def _slot_cell(slot, weights):
+    """One grid position, ready to render: an empty slot is a cell too."""
+    lot = slot.lot
+    traveller_type = lot.traveller_type if lot else None
+    return {
+        "slot": slot,
+        "label": slot.label,
+        "empty": lot is None,
+        "lot": lot,
+        "wire_serial": lot.wire_serial if lot else "",
+        "traveller_type": traveller_type.name if traveller_type else "",
+        "weight": weights.get(slot.lot_id),
+        "placed_at": slot.placed_at,
     }
