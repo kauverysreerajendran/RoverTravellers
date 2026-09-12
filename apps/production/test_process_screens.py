@@ -413,14 +413,13 @@ class ProcessMenuTests(WorkflowTestBase):
         self.assertTrue(next(s for s in forming["submenus"] if s["key"] == "main")["is_active"])
 
 
-class ProcessChainTests(WorkflowTestBase):
-    """The chain rule: every record on process N's Complete Table shows up
-    on process N+1's Main Table as an incoming row until N+1 has been
-    initiated for it.
+class ProcessChainTestBase(WorkflowTestBase):
+    """One batch, and the helpers to walk it through the whole registry.
 
-    The test walks the registry pair by pair. It names no process slug: it
-    asks each process for its neighbours, its services and its screens, so
-    adding a sixth process to PROCESSES puts it under test automatically.
+    Carries no tests of its own: the chain tests below use it, and so does
+    any other suite that needs real material moving through the real
+    services (see apps/masters/tests.py). It names no process slug - it
+    asks each process for its neighbours, its services and its screens.
     """
 
     def setUp(self):
@@ -503,7 +502,13 @@ class ProcessChainTests(WorkflowTestBase):
         self.assertIsNotNone(record, f"Initiating at {process.label} created no record")
         return record
 
-    # ------------------------------------------------------------------
+
+class ProcessChainTests(ProcessChainTestBase):
+    """The chain rule: every record on process N's Complete Table shows up
+    on process N+1's Main Table as an incoming row until N+1 has been
+    initiated for it. The test walks the registry pair by pair, so adding a
+    sixth process to PROCESSES puts it under test automatically."""
+
     def test_every_consecutive_pair_hands_material_over(self):
         record = self.start_at_origin()
         output = Decimal("400.00")
