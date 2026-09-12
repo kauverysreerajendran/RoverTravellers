@@ -565,7 +565,7 @@ a { color: var(--rover-red); }
 @media (max-width: 640px) { .rack-search { margin-left: 0; max-width: none; } }
 
 /* Product credit, on the login page and at the foot of every screen. */
-.app-credit { margin-top: 1.75rem; text-align: center; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--rover-muted); }
+.app-credit { margin-top: 1.75rem; text-align: center; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: #000; }
 
 /* Process stepper (Forming onward) */
 .stepper { display: flex; align-items: flex-start; overflow-x: auto; padding: .5rem 0; }
