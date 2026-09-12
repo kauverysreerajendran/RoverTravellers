@@ -57,6 +57,9 @@ from apps.masters.models import (
     DiameterTravellerMapping,
     Machine,
     RackMaster,
+    RackPlacement,
+    RackSlot,
+    RackZone,
     SurfaceFinish,
     TravellerNo,
     TravellerType,
@@ -441,6 +444,11 @@ class Command(BaseCommand):
         is moved back to the simulated moment with an UPDATE."""
         for model in BACKDATED_LEDGERS:
             model.objects.filter(created_at__gte=marker).update(created_at=stamp)
+        # Rack placements are stamped by the placement service, so the slot
+        # a step filled - or freed - is moved back with everything else.
+        RackPlacement.objects.filter(placed_at__gte=marker).update(placed_at=stamp)
+        RackPlacement.objects.filter(released_at__gte=marker).update(released_at=stamp)
+        RackSlot.objects.filter(placed_at__gte=marker).update(placed_at=stamp)
         if wire_serial:
             WireSerialMaster.objects.filter(serial_no=wire_serial).update(used_at=stamp)
         if record is not None:
@@ -665,6 +673,25 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(warning))
             self.stdout.write(self.style.WARNING("=" * 78))
 
+    def _print_zone_occupancy(self):
+        """Where the generated material physically sits. Rolling's completed
+        wire waits on its zone until Forming initiates it, and received
+        finished goods stay on theirs, so these counts are the storage-side
+        view of the same handover chain checked above."""
+        zones = RackZone.objects.filter(is_active=True).order_by("code")
+        if not zones:
+            return
+        header = f"{'Rack zone':<24}{'Racks':>7}{'Slots':>7}{'Occupied':>10}{'Empty':>7}"
+        self.stdout.write("")
+        self.stdout.write(header)
+        self.stdout.write("-" * len(header))
+        for zone in zones:
+            summary = masters_services.zone_summary(zone)
+            self.stdout.write(
+                f"{zone.name:<24}{summary['total_racks']:>7}{summary['total_slots']:>7}"
+                f"{summary['occupied']:>10}{summary['empty']:>7}"
+            )
+
     def _process_dates(self, process):
         """Earliest and latest date shown on this process's two screens."""
         bounds = process.model.objects.aggregate(first=Min("created_at"), last=Max("created_at"))
@@ -693,6 +720,8 @@ class Command(BaseCommand):
                 f"{process.complete_queryset(None).count():>10}"
                 f"{earliest:>13}{latest:>13}"
             )
+
+        self._print_zone_occupancy()
 
         used_types = RollingBatch.objects.values("traveller_type").distinct().count()
         active_types = TravellerType.objects.filter(is_active=True).count()

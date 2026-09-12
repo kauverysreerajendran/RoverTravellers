@@ -11,6 +11,8 @@ from apps.masters.models import (
     DiameterTravellerMapping,
     Machine,
     RackMaster,
+    RackZone,
+    StorageRack,
     SurfaceFinish,
     TravellerNo,
     TravellerType,
@@ -35,6 +37,22 @@ RACK_COUNT = 6
 MACHINE_SUFFIXES = ["A", "B"]
 # Machine.STAGE_CHOICES carries a catch-all that is not a process.
 GENERIC_MACHINE_STAGE = "general"
+
+# Storage rack zones: the physical grids material sits on between the
+# processes. `process_slug` names the process whose completion (Rolling) or
+# receipt (Finished Goods) puts material on the zone; RackZone validates it
+# against the process registry on save, so a slug that is not a process
+# fails here rather than seeding a dead zone.
+RACK_ZONES = [
+    {
+        "code": "FORMING", "name": "Forming Rack", "process_slug": "rolling",
+        "rack_prefix": "FR", "rack_count": 10, "rows": 5, "columns": 5,
+    },
+    {
+        "code": "FG", "name": "Finished Goods Rack", "process_slug": "finished_goods",
+        "rack_prefix": "FG", "rack_count": 5, "rows": 5, "columns": 5,
+    },
+]
 
 # Official Traveller Type Master. Row 17 and 63 both read "RE2 UDR" in the
 # source document - kept as-is; seq_no is the real business key.
@@ -96,6 +114,7 @@ class Command(BaseCommand):
         self._seed_surface_finish()
         self._seed_traveller_numbers()
         self._seed_racks()
+        self._seed_rack_zones()
         self._seed_machines()
         self._seed_confirmed_mapping()
         self._seed_wire_serials()
@@ -154,6 +173,36 @@ class Command(BaseCommand):
             f"  Racks: {RackMaster.objects.count()} rows (R1 from the Phase 1 document, "
             f"R2-R{RACK_COUNT} provisional)"
         )
+
+    def _seed_rack_zones(self):
+        """Idempotent: zones and racks are matched on their codes and slots
+        are only ever added, never recreated, so re-running this never moves
+        material that is already on a rack."""
+        for spec in RACK_ZONES:
+            zone, _ = RackZone.objects.update_or_create(
+                code=spec["code"],
+                defaults={
+                    "name": spec["name"],
+                    "process_slug": spec["process_slug"],
+                    "rack_count": spec["rack_count"],
+                    "rows": spec["rows"],
+                    "columns": spec["columns"],
+                    "is_active": True,
+                },
+            )
+            added = 0
+            for position in range(1, spec["rack_count"] + 1):
+                rack, created = StorageRack.objects.update_or_create(
+                    zone=zone, code=f"{spec['rack_prefix']}-{position:02d}",
+                    defaults={"position": position, "is_active": True},
+                )
+                # A rack created here built its own slots; an existing one
+                # only gains the slots it is missing.
+                added += rack.build_slots() if not created else rack.slots.count()
+            self.stdout.write(
+                f"  {zone.name}: {zone.racks.count()} racks x {zone.rows}x{zone.columns} "
+                f"= {zone.slots.count()} slots ({added} created this run)"
+            )
 
     def _seed_machines(self):
         """Machines are master data that the process screens read (Forming

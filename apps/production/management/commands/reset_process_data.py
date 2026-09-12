@@ -12,7 +12,7 @@ from django.apps import apps as django_apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from apps.masters.models import DiameterMaster, WireSerialMaster
+from apps.masters.models import DiameterMaster, RackSlot, WireSerialMaster
 from apps.production.process_registry import PROCESSES
 
 # Never touched. Their row counts are asserted identical before and after.
@@ -22,6 +22,12 @@ PROTECTED_MODELS = [
     "masters.SurfaceFinish",
     "masters.DiameterMaster",
     "masters.RackMaster",
+    # The storage zones and their slots are master data - the grids exist
+    # whether or not anything is sitting on them. What is sitting on them
+    # is process data, cleared by vacating the slots below.
+    "masters.RackZone",
+    "masters.StorageRack",
+    "masters.RackSlot",
     "masters.DiameterTravellerMapping",
     "masters.WireSerialMaster",
     "masters.Machine",
@@ -36,6 +42,7 @@ PROTECTED_MODELS = [
 # silently left behind. The process records themselves are spliced in
 # between, read from the registry.
 CHILD_MODELS = [
+    "masters.RackPlacement",
     "rolling.RollingBatchCoil",
     "production.OperationQualityCheck",
     "production.OperationStatusHistory",
@@ -126,6 +133,7 @@ class Command(BaseCommand):
                 count = model.objects.count()
                 model.objects.all().delete()
                 deleted.append((path, count))
+            self._vacate_rack_slots()
             self._rewind_wire_serials(options["current_serial"])
             for diameter in DiameterMaster.objects.all():
                 diameter.recalculate_stock()
@@ -138,6 +146,14 @@ class Command(BaseCommand):
         self._print_table("Deleted", deleted)
         self._print_table("Kept (master data, unchanged)", sorted(after.items()))
         self.stdout.write(self.style.SUCCESS("Process data cleared. Master data intact."))
+
+    def _vacate_rack_slots(self):
+        """Deleting the lots already empties `RackSlot.lot` (SET_NULL); this
+        clears the rest of the occupancy so every slot reads as empty."""
+        vacated = RackSlot.objects.exclude(
+            lot__isnull=True, placed_at__isnull=True, placed_by__isnull=True
+        ).update(lot=None, placed_at=None, placed_by=None)
+        self.stdout.write(f"  Rack slots vacated: {vacated}")
 
     def _rewind_wire_serials(self, current_serial):
         """Put the wire serial master back to its seed baseline: used up to
