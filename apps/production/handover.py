@@ -72,6 +72,35 @@ class HandoverRecord:
     # serves every table without asking which process it is looking at.
     # ------------------------------------------------------------------
     @property
+    def previous_record(self):
+        """The record at the process before this one that handed this lot
+        over: the Forming transaction behind a Heat Treatment row.
+
+        This is what lets a process's Main Table carry everything the
+        previous process's Complete Table showed - the material arriving
+        here *is* that record - without any screen knowing which processes
+        exist. Cached per instance, because a table asks every row for it.
+        """
+        if "_previous_record" in self.__dict__:
+            return self.__dict__["_previous_record"]
+
+        from .process_registry import process_for_record
+
+        process = process_for_record(self)
+        previous = process.previous if process else None
+        lot = self.handover_lot
+        record = None
+        if previous is not None and lot is not None:
+            record = (
+                previous.complete_queryset(None)
+                .filter(**{previous.handover_lot_path: lot})
+                .order_by(previous.handover_ordering)
+                .first()
+            )
+        self.__dict__["_previous_record"] = record
+        return record
+
+    @property
     def rack_placement(self):
         from apps.masters import services as rack_services
 

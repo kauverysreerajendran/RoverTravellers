@@ -84,7 +84,10 @@ class ProcessConfig:
     search_placeholder = "Search..."
     status_field = "status"
     ordering = "-created_at"
-    main_columns = ()
+    # Columns shared by every table of this process (the material's
+    # identity). The Main Table is built from these, then everything the
+    # previous process recorded, then this process's own columns.
+    identity_columns = ()
     complete_columns = ()
     create_url_name = ""
     create_label = ""
@@ -188,6 +191,50 @@ class ProcessConfig:
         """The process this one hands material to, or None if terminal."""
         position = self.index
         return PROCESSES[position + 1] if position + 1 < len(PROCESSES) else None
+
+    # ------------------------------------------------------------------
+    # What arrived here. Everything the previous process recorded on its
+    # Complete Table is carried onto this process's Main Table, because
+    # that Complete Table *is* the material waiting here: the operator
+    # should not have to go back a screen to see what they were handed.
+    #
+    # One accessor serves both kinds of row - an incoming row is the
+    # predecessor record itself, a row of this process reaches it through
+    # `previous_record` - so a sixth process inherits its predecessor's
+    # columns without a line of code.
+    # ------------------------------------------------------------------
+    @property
+    def inherited_columns(self):
+        previous = self.previous
+        if previous is None:
+            return ()
+        shown = {column.label for column in (*self.identity_columns, *self.own_columns)}
+        inherited = []
+        for column in previous.complete_columns:
+            if column.label in shown or column.kind == "status" or not column.accessor:
+                continue
+            shown.add(column.label)
+            inherited.append(
+                Column(
+                    column.label,
+                    accessor=f"previous_record.{column.accessor}",
+                    pending=column.accessor,
+                    kind=column.kind,
+                )
+            )
+        return tuple(inherited)
+
+    # Columns this process shows in its own right; `inherited_columns`
+    # skips anything already named here, so nothing appears twice.
+    own_columns = ()
+
+    @property
+    def main_columns(self):
+        """Identity, then everything that arrived from the process before,
+        then this process's own columns. A process that wants something
+        else (the origin process, which is handed nothing) overrides this
+        with a plain tuple."""
+        return (*self.identity_columns, *self.inherited_columns, *self.own_columns)
 
     # ------------------------------------------------------------------
     # Incoming rows - material the previous process completed and this
@@ -368,6 +415,7 @@ class StageProcess(ProcessConfig):
     # Main Table: only the weight handed over, since nothing here has
     # produced an output weight yet.
     weight_columns = (RECEIVED_WEIGHT_COLUMN, STATUS_COLUMN)
+    own_columns = weight_columns
 
     def row_actions(self, obj):
         detail = reverse(f"{self.slug}:detail", kwargs={"pk": obj.pk})
@@ -389,8 +437,7 @@ class FormingProcess(StageProcess):
     search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "machine__code")
     search_placeholder = "Search wire serial, transaction, machine..."
 
-    main_columns = (
-        *StageProcess.identity_columns,
+    own_columns = (
         Column("Surface Finish", "surface_finish.finish_name", pending="surface_finish.finish_name"),
         RACK_SLOT_COLUMN,
         *StageProcess.weight_columns,
@@ -431,7 +478,7 @@ class HeatTreatmentProcess(StageProcess):
     batch_column = Column("Batch No", "heat_batch.batch_no", order_by="heat_batch__batch_no")
     barcode_column = Column("Barcode", "heat_batch.qr_token", kind="qr")
 
-    main_columns = (*StageProcess.identity_columns, batch_column, *StageProcess.weight_columns)
+    own_columns = (batch_column, *StageProcess.weight_columns)
 
     complete_columns = (
         *StageProcess.identity_columns,
@@ -480,8 +527,6 @@ class FinishingProcess(StageProcess):
     search_fields = ("transaction_number", "lot__source_rolling_batch__wire_serial", "batch_no", "colour")
     search_placeholder = "Search wire serial, batch no, colour..."
 
-    main_columns = (*StageProcess.identity_columns, *StageProcess.weight_columns)
-
     complete_columns = (
         *StageProcess.identity_columns,
         Column("Batch No", "batch_no"),
@@ -522,11 +567,8 @@ class FinishedGoodsProcess(ProcessConfig):
         "Received Weight (kg)", "received_weight", pending="output_weight", kind="number"
     )
 
-    main_columns = (
-        *IDENTITY_COLUMNS,
-        received_weight_column,
-        STATUS_COLUMN,
-    )
+    identity_columns = IDENTITY_COLUMNS
+    own_columns = (received_weight_column, STATUS_COLUMN)
 
     complete_columns = (
         *IDENTITY_COLUMNS,

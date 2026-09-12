@@ -54,11 +54,37 @@ class ProcessRegistryTests(TestCase):
                         self.assertNotIn("lot.lot_number", column.accessor)
                         self.assertNotIn("lot.lot_number", column.pending)
 
-    def test_complete_table_is_richer_than_main_table(self):
-        """The two submenus must not resolve to the same screen."""
+    def test_the_two_tables_are_different_screens(self):
+        """The two submenus must not resolve to the same screen.
+
+        The Main Table carries what arrived from the process before plus
+        this process's open work; the Complete Table carries what this
+        process itself recorded. Either can be the wider of the two.
+        """
         for process in PROCESSES:
             with self.subTest(process=process.slug):
-                self.assertGreater(len(process.complete_columns), len(process.main_columns))
+                self.assertNotEqual(
+                    [column.label for column in process.main_columns],
+                    [column.label for column in process.complete_columns],
+                )
+
+    def test_a_main_table_carries_what_the_previous_process_recorded(self):
+        """Material waiting here *is* the previous process's completed
+        work, so its Complete Table columns appear here - the operator
+        should not have to go back a screen to see what they were handed."""
+        for process in PROCESSES:
+            previous = process.previous
+            if previous is None:
+                continue
+            with self.subTest(process=process.slug):
+                main = [column.label for column in process.main_columns]
+                for column in previous.complete_columns:
+                    if column.kind == "status" or not column.accessor:
+                        continue
+                    self.assertIn(
+                        column.label, main,
+                        f"{process.label} does not show {previous.label}'s {column.label}",
+                    )
 
     def test_weight_labels_follow_the_agreed_convention(self):
         """The weight a process is handed reads "Received Weight"; its own
