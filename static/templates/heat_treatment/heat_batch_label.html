@@ -42,8 +42,6 @@ the print dialog when opened.
 
     <dl>
       <dt>Date</dt><dd>{{ batch.created_at|date:"d M Y" }}</dd>
-      <dt>Traveller</dt>
-      <dd>{% for t in batch.traveller_types %}{{ t.name }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</dd>
       <dt>Wire Serials</dt>
       <dd>{% for serial in batch.wire_serials %}{{ serial }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</dd>
       <dt>Received</dt><dd>{{ batch.received_weight_total }} kg</dd>

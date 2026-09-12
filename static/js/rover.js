@@ -179,7 +179,7 @@ document.addEventListener("DOMContentLoaded", function () {
       detail.innerHTML =
         '<img src="' + batch.qr_url + '" alt="Batch QR">' +
         '<div><div class="fs-5 fw-bold">' + batch.batch_no + "</div>" +
-        '<div class="small text-muted mb-2">' + batch.lot_count + " lot(s) &middot; " + types +
+        '<div class="small text-muted mb-2">' + types +
         "<br>" + serials + "</div>" +
         '<a class="btn btn-primary btn-sm" href="' + batch.url + '">View</a> ' +
         '<a class="btn btn-outline-secondary btn-sm" target="_blank" href="' + batch.label_url + '">Print label</a>' +
@@ -204,8 +204,7 @@ document.addEventListener("DOMContentLoaded", function () {
         var types = (batch.traveller_types || []).join(", ") || "-";
         return '<button type="button" class="locate-row" data-index="' + index + '">' +
           "<strong>" + batch.batch_no + "</strong>" +
-          '<span class="meta">' + batch.lot_count + " lot(s) &middot; " + types + "</span>" +
-          '<span class="ms-auto badge badge-status-' + batch.status + '">' + batch.status + "</span>" +
+          '<span class="meta">' + types + "</span>" +
           "</button>";
       }).join("");
       Array.prototype.slice.call(list.querySelectorAll(".locate-row")).forEach(function (row) {
