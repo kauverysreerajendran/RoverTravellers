@@ -58,8 +58,13 @@ def nav_context(request):
         "app_name": "Rover Traveller",
     }
     if getattr(request, "user", None) and request.user.is_authenticated:
+        from apps.heat_treatment.barcode import site_base_url
         from apps.rolling.models import RollingBatch
 
         ctx["notification_count"] = RollingBatch.objects.filter(status="In Progress").count()
         ctx["process_nav"] = _process_nav(request)
+        # Where a scanned label points. The Locate-me scanner compares what
+        # the camera read against this, so a QR from somewhere else is
+        # refused rather than followed.
+        ctx["site_base_url"] = site_base_url(request)
     return ctx

@@ -1,0 +1,61 @@
+{% comment %}
+"Locate me": find a furnace load from anywhere in the app.
+
+Two ways in. *Find* searches batches by number, by any wire serial in the
+load or by any traveller type in it, and lists the completed ones - the
+same set the Heat Treatment Complete Table shows, because the API reads
+that table's own queryset. *Scan* opens the camera on a phone or laptop
+and follows a Rover label; anything else is refused rather than followed.
+
+Rendered only for signed-in users; the JS lives in static/js/rover.js.
+{% endcomment %}
+<div class="modal fade" id="locateModal" tabindex="-1" aria-labelledby="locateModalLabel" aria-hidden="true"
+     data-api="{% url 'api-heat-batch-list' %}" data-base="{{ site_base_url }}">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="locateModalLabel"><i class="bi bi-geo-alt me-2"></i>Locate me</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <ul class="nav process-tabs mb-3" role="tablist">
+          <li><button class="process-tab active" id="locateFindTab" data-bs-toggle="tab"
+                      data-bs-target="#locateFind" type="button" role="tab">
+            <i class="bi bi-search"></i> Find</button></li>
+          <li><button class="process-tab" id="locateScanTab" data-bs-toggle="tab"
+                      data-bs-target="#locateScan" type="button" role="tab">
+            <i class="bi bi-upc-scan"></i> Scan</button></li>
+        </ul>
+
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="locateFind" role="tabpanel">
+            <label class="search-box mb-3">
+              <i class="bi bi-search"></i>
+              <input type="search" id="locateSearch" autocomplete="off"
+                     placeholder="Batch no (B001), wire serial or traveller type...">
+            </label>
+            <div class="locate-list" id="locateList">
+              <div class="text-muted small py-2">Loading completed batches...</div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="locateScan" role="tabpanel">
+            <div id="locateReader" class="locate-reader"></div>
+            <div class="d-flex gap-2 mt-2">
+              <button type="button" class="btn btn-primary btn-sm" id="locateScanStart">
+                <i class="bi bi-camera me-1"></i> Start camera
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="locateScanStop" hidden>Stop</button>
+            </div>
+            <div class="small text-muted mt-2" id="locateScanNote">
+              Point the camera at a batch label. Labels from anywhere else are ignored.
+            </div>
+          </div>
+        </div>
+
+        <div class="locate-detail mt-3" id="locateDetail" hidden></div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -47,6 +47,11 @@
       </div>
     </div>
 
+    <button type="button" class="btn btn-outline-light btn-sm header-locate" data-bs-toggle="modal"
+            data-bs-target="#locateModal" title="Locate a heat batch">
+      <i class="bi bi-geo-alt"></i><span class="d-none d-lg-inline ms-1">Locate me</span>
+    </button>
+
     <button type="button" class="header-bell" title="Rolling batches in progress">
       <i class="bi bi-bell"></i>
       {% if notification_count %}<span class="bell-badge">{{ notification_count }}</span>{% endif %}
@@ -160,6 +165,8 @@
     <footer class="app-credit">Powered by Pinesphere</footer>
   </main>
 </div>
+
+{% include "heat_treatment/_locate_modal.html" %}
 {% else %}
   {% block auth_content %}{% endblock %}
 {% endif %}

@@ -536,6 +536,20 @@ a { color: var(--rover-red); }
 .batch-qr img { width: 100%; height: 100%; display: block; }
 .table-qr { display: inline-block; width: 40px; height: 40px; }
 .table-qr img { width: 100%; height: 100%; display: block; }
+
+/* Locate me */
+.header-locate { border-color: rgba(255,255,255,.45); color: #fff; white-space: nowrap; }
+.header-locate:hover { background: rgba(255,255,255,.14); color: #fff; border-color: #fff; }
+.locate-list { max-height: 260px; overflow-y: auto; border: 1px solid var(--rover-border); border-radius: 10px; }
+.locate-row { display: flex; align-items: center; gap: .75rem; width: 100%; padding: .55rem .75rem; border: 0; background: none; text-align: left; border-bottom: 1px solid var(--rover-border); }
+.locate-row:last-child { border-bottom: 0; }
+.locate-row:hover, .locate-row.is-active { background: var(--rover-red-tint); }
+.locate-row strong { min-width: 4.5rem; }
+.locate-row .meta { color: var(--rover-slate); font-size: .8rem; }
+.locate-detail { border: 1px solid var(--rover-border); border-radius: 12px; padding: .9rem; display: flex; gap: 1rem; align-items: flex-start; }
+.locate-detail img { width: 110px; height: 110px; border: 1px solid var(--rover-border); border-radius: 8px; background: #fff; }
+.locate-reader { min-height: 220px; border: 1px dashed var(--rover-border); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+.locate-reader video { max-width: 100%; border-radius: 12px; }
 .slot-empty.is-match { border-style: solid; border-color: var(--rover-success); color: var(--rover-success); }
 .slot-empty.is-dim { opacity: .35; }
 .pill.is-match { background: var(--rover-red-tint); color: var(--rover-red); }
