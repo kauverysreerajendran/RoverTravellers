@@ -107,6 +107,13 @@ class ProcessConfig:
     # the OperationBase stages spell it differently, so the vocabulary
     # lives with the process rather than in the completion service.
     completed_status = ""
+    # Further statuses a record can move to after completing that still
+    # mean "finished here" (Finished Goods stock that has been dispatched).
+    later_done_statuses = ()
+
+    @property
+    def done_statuses(self):
+        return (self.completed_status, *self.later_done_statuses)
 
     # Statuses that are still open work. Rows in these statuses belong on
     # the Main Table (alongside material that has not started yet);
@@ -577,9 +584,11 @@ class FinishedGoodsProcess(ProcessConfig):
     create_label = "Receive Finished Goods"
     initiate_label = "Receive"
     handover_ordering = "-updated_at"
-    # Stock on QC hold is still open work; approved/rejected stock is done.
+    # Stock on QC hold is still open work; approved/rejected/dispatched
+    # stock is done and sits on the Complete Table.
     open_statuses = ("hold",)
     completed_status = "available"
+    later_done_statuses = ("dispatched",)
 
     # Received Weight is a property here (accepted + rejected), so unlike
     # the stages it has no ORM path to sort on.

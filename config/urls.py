@@ -41,6 +41,7 @@ urlpatterns = [
     path("api/", include("apps.inventory.api_urls")),
     path("api/", include("apps.reports.api_urls")),
     path("api/", include("apps.dashboard.api_urls")),
+    path("api/sales/", include("apps.sales.api_urls")),
 ]
 
 if settings.DEBUG:

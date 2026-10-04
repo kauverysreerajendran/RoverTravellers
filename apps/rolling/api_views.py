@@ -7,7 +7,10 @@ from apps.masters.models import SurfaceFinish, TravellerNo, TravellerType
 
 from . import services
 from .models import RollingBatch
-from .serializers import RollingBatchSerializer, RollingCompleteSerializer, RollingInitiateSerializer
+from .serializers import (
+    RollingBatchSerializer, RollingCompleteSerializer, RollingInitiateSerializer, stock_check_payload,
+    traveller_overview_payload,
+)
 
 
 class RollingBatchViewSet(viewsets.ReadOnlyModelViewSet):
@@ -38,6 +41,34 @@ class RollingBatchViewSet(viewsets.ReadOnlyModelViewSet):
             detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
             return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
         return Response(RollingBatchSerializer(batch).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["post"], url_path="stock-check")
+    def stock_check(self, request):
+        """POST /api/rolling/stock-check/ -> read-only stock check before a
+        batch is started (see services.check_stock)."""
+        try:
+            result = services.check_stock(
+                request.data.get("traveller_type_id"),
+                request.data.get("traveller_no_id"),
+                request.data.get("required_m"),
+            )
+        except DjangoValidationError as exc:
+            errors = exc.message_dict if hasattr(exc, "error_dict") else {"detail": exc.messages}
+            return Response({"errors": {k: v[0] for k, v in errors.items()}}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(stock_check_payload(result, request.user))
+
+    @action(detail=False, methods=["get"], url_path="stock-check/traveller", url_name="stock-check-traveller")
+    def stock_check_traveller(self, request):
+        """GET /api/rolling/stock-check/traveller/?traveller_type_id=&traveller_no_id=
+        -> stock guidance for Required M and where the traveller's material
+        is now (see services.traveller_overview). Read-only."""
+        try:
+            result = services.traveller_overview(
+                request.query_params.get("traveller_type_id"), request.query_params.get("traveller_no_id"),
+            )
+        except DjangoValidationError as exc:
+            return Response({"errors": {k: v[0] for k, v in exc.message_dict.items()}}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(traveller_overview_payload(result))
 
     @action(detail=True, methods=["put"])
     def complete(self, request, pk=None):

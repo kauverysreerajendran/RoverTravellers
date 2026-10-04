@@ -29,7 +29,33 @@ class RollingCreateView(LoginRequiredMixin, View):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
-        return render(request, self.template_name, self._context(RollingInitiateForm()))
+        initial, stock_check = self._stock_check_prefill(request.GET)
+        ctx = self._context(RollingInitiateForm(initial=initial))
+        ctx["stock_check"] = stock_check
+        return render(request, self.template_name, ctx)
+
+    @staticmethod
+    def _stock_check_prefill(params):
+        """Arriving from the Stock Check's "Proceed to Rolling" carries
+        ?traveller_type=&traveller_no=&required_m=. Pre-select what is valid
+        and ignore the rest; without the params the form is untouched. The
+        check is re-run (read-only) only to show the Required M hint - the
+        submit is still validated in full by initiate_rolling_batch."""
+        form = RollingInitiateForm()
+        initial = {}
+        for param, field in (("traveller_type", "traveller_type_id"), ("traveller_no", "traveller_no")):
+            value = params.get(param)
+            if value and value.isdigit() and form.fields[field].queryset.filter(pk=value).exists():
+                initial[field] = int(value)
+        stock_check = None
+        if params.get("required_m") and len(initial) == 2:
+            try:
+                stock_check = services.check_stock(
+                    initial["traveller_type_id"], initial["traveller_no"], params["required_m"]
+                )
+            except ValidationError:
+                stock_check = None
+        return initial, stock_check
 
     def post(self, request):
         form = RollingInitiateForm(request.POST)

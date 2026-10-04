@@ -13,6 +13,8 @@ ROLE_CHOICES = [
     ("quality_inspector", "Quality Inspector"),
     ("inventory_manager", "Inventory Manager"),
     ("viewer", "Viewer"),
+    ("sales_admin", "Sales Admin"),
+    ("sales_executive", "Sales Executive"),
 ]
 
 # Roles allowed to complete / approve production transactions.

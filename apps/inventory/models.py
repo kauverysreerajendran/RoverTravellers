@@ -16,6 +16,10 @@ STOCK_STATUS_CHOICES = [
     ("rejected", "Rejected"),
 ]
 
+# Finished Goods only: approved stock that has been taken off its rack and
+# left the plant. It keeps its weight and history but is no longer in stock.
+FG_STOCK_STATUS_CHOICES = STOCK_STATUS_CHOICES + [("dispatched", "Dispatched")]
+
 
 class RawMaterialStock(TimeStampedModel):
     material = models.ForeignKey(MaterialMaster, on_delete=models.PROTECT, related_name="stock_records")
@@ -71,7 +75,7 @@ class FinishedGoodsStock(HandoverRecord, TimeStampedModel):
     quality_approved_by = models.ForeignKey(
         "accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
-    status = models.CharField(max_length=10, choices=STOCK_STATUS_CHOICES, default="hold")
+    status = models.CharField(max_length=10, choices=FG_STOCK_STATUS_CHOICES, default="hold")
 
     class Meta:
         ordering = ["-created_at"]
@@ -87,6 +91,8 @@ class FinishedGoodsStock(HandoverRecord, TimeStampedModel):
     def clean(self):
         if self.status == "available" and not self.quality_approved:
             raise ValidationError("Finished goods cannot be marked available without quality approval.")
+        if self.status == "dispatched" and not self.quality_approved:
+            raise ValidationError("Finished goods cannot be dispatched without quality approval.")
 
     @property
     def received_quantity(self):

@@ -19,13 +19,13 @@
       </dd>
       <dt class="col-5">Accepted Qty</dt><dd class="col-7">{{ item.accepted_quantity }}</dd>
       <dt class="col-5">Rejected Qty</dt><dd class="col-7">{{ item.rejected_quantity }}</dd>
-      <dt class="col-5">Status</dt><dd class="col-7"><span class="badge badge-status-{{ item.status }}">{{ item.status }}</span></dd>
+      <dt class="col-5">Status</dt><dd class="col-7"><span class="badge badge-status-{{ item.status }}">{{ item.get_status_display }}</span></dd>
       <dt class="col-5">Quality Approved</dt><dd class="col-7">{{ item.quality_approved|yesno:"Yes,No" }} {% if item.quality_approved_by %}by {{ item.quality_approved_by }}{% endif %}</dd>
     </dl>
   </div>
   {% if can_approve %}
   <div class="card-footer bg-white d-flex gap-2">
-    {% if not item.quality_approved %}
+    {% if not item.quality_approved and item.status != "dispatched" %}
     <form method="post" action="{% url 'finished_goods:approve' item.pk %}">{% csrf_token %}<button class="btn btn-success btn-sm">Approve &amp; Mark Available</button></form>
     <form method="post" action="{% url 'finished_goods:reject' item.pk %}">{% csrf_token %}<button class="btn btn-danger btn-sm">Reject</button></form>
     {% endif %}

@@ -25,7 +25,7 @@ def stage_progress(lot):
     active_stage = first_stage if lot.current_stage == RAW_MATERIAL_STAGE else lot.current_stage
 
     if active_stage == last_process.slug:
-        finished = lot.finished_goods.filter(status=last_process.completed_status).exists()
+        finished = lot.finished_goods.filter(status__in=last_process.done_statuses).exists()
         active_index = len(stage_order) if finished else len(stage_order) - 1
     else:
         active_index = stage_order.index(active_stage) if active_stage in stage_order else 0

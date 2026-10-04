@@ -288,6 +288,48 @@ class RackFlowTests(SeededZoneTestBase):
         self.assertIsNone(rack_services.slot_for_lot(zone, stock.lot))
         self.assertIsNotNone(RackPlacement.objects.get(lot=stock.lot, slot=slot).released_at)
 
+    def test_approved_stock_removed_from_the_rack_is_dispatched_and_leaves_stock_check(self):
+        from apps.production.services import stage_progress
+        from apps.sales import services as sales_services
+
+        stock = self.run_to_terminal()
+        fg_services.approve_finished_goods(stock, self.admin, mark_available=True)
+        batch = stock.lot.source_rolling_batch
+        product = dict(traveller_type_id=batch.traveller_type_id, traveller_no_id=batch.traveller_no_id,
+                       finish_id=batch.finish_id, required_m="10", record=False)
+        options = [(o["traveller_type_id"], o["traveller_no_id"], o["finish_id"])
+                   for o in sales_services.stock_check_options()]
+        self.assertIn((batch.traveller_type_id, batch.traveller_no_id, batch.finish_id), options)
+        self.assertGreater(sales_services.check_stock(**product)["available_kg"], 0)
+
+        fg_services.remove_from_rack(stock, self.admin)
+        stock.refresh_from_db()
+        self.assertEqual(stock.status, "dispatched")
+        self.assertGreater(stock.accepted_quantity, 0)  # weight and history stay on the row
+        self.assertEqual(sales_services.stock_check_options(), [])
+        self.assertEqual(sales_services.check_stock(**product)["available_kg"], 0)
+        self.assertTrue(all(step["state"] == "done" for step in stage_progress(stock.lot)))
+
+        # Dispatched is final: no second removal, no QC action.
+        for action in (lambda: fg_services.remove_from_rack(stock, self.admin),
+                       lambda: fg_services.approve_finished_goods(stock, self.admin),
+                       lambda: fg_services.reject_finished_goods(stock, self.admin),
+                       lambda: fg_services.hold_finished_goods(stock, self.admin)):
+            with self.assertRaises(ValidationError):
+                action()
+        stock.refresh_from_db()
+        self.assertEqual(stock.status, "dispatched")
+
+        response = self.client.get(reverse("process:complete", kwargs={"process": PROCESSES[-1].slug}))
+        self.assertContains(response, "Dispatched")
+
+    def test_stock_on_hold_removed_from_the_rack_keeps_its_status(self):
+        stock = self.run_to_terminal()
+        self.assertEqual(stock.status, "hold")
+        fg_services.remove_from_rack(stock, self.admin)
+        stock.refresh_from_db()
+        self.assertEqual(stock.status, "hold")
+
     def test_the_rolling_complete_table_shows_the_rack_slot(self):
         origin = PROCESSES[0]
         record = self.complete_record(self.start_at_origin(), Decimal("390.00"))

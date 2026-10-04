@@ -152,7 +152,11 @@ class FinishedGoodsRemoveFromRackView(LoginRequiredMixin, View):
         fg_stock = get_object_or_404(FinishedGoodsStock, pk=pk)
         try:
             slot = services.remove_from_rack(fg_stock, request.user, reason=request.POST.get("reason", ""))
-            messages.success(request, f"{fg_stock.fg_lot_number} removed from {slot.label}.")
+            messages.success(
+                request,
+                f"{fg_stock.fg_lot_number} removed from {slot.label}"
+                + (" and dispatched." if fg_stock.status == "dispatched" else "."),
+            )
         except (ValidationError, PermissionDenied) as exc:
             detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
             messages.error(request, detail)
@@ -162,6 +166,9 @@ class FinishedGoodsRemoveFromRackView(LoginRequiredMixin, View):
 class FinishedGoodsHoldView(LoginRequiredMixin, View):
     def post(self, request, pk):
         fg_stock = get_object_or_404(FinishedGoodsStock, pk=pk)
-        services.hold_finished_goods(fg_stock, request.user)
-        messages.success(request, f"{fg_stock.fg_lot_number} put on hold.")
+        try:
+            services.hold_finished_goods(fg_stock, request.user)
+            messages.success(request, f"{fg_stock.fg_lot_number} put on hold.")
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
         return redirect("finished_goods:detail", pk=pk)

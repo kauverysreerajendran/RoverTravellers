@@ -162,7 +162,8 @@ class ProcessTrackerView(LoginRequiredMixin, DynamicPageSizeMixin, ListView):
         rows = []
         for lot in ctx["lots"]:
             spec = lot.production_order.product.specifications.filter(parameter_name__icontains="diameter").first()
-            if lot.current_stage == "finished_goods" and lot.finished_goods.filter(status="available").exists():
+            if (lot.current_stage == PROCESSES[-1].slug
+                    and lot.finished_goods.filter(status__in=PROCESSES[-1].done_statuses).exists()):
                 status = "completed"
             elif lot.is_on_hold:
                 status = "hold"

@@ -67,4 +67,9 @@ def nav_context(request):
         # the camera read against this, so a QR from somewhere else is
         # refused rather than followed.
         ctx["site_base_url"] = site_base_url(request)
+        # Dropdowns for the header's Stock Check modal (rolling/_stock_check.html).
+        from apps.masters.models import TravellerNo, TravellerType
+
+        ctx["stock_check_traveller_types"] = TravellerType.objects.filter(is_active=True).order_by("seq_no")
+        ctx["stock_check_traveller_nos"] = TravellerNo.objects.filter(is_active=True).order_by("code")
     return ctx

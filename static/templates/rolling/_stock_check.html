@@ -1,0 +1,335 @@
+{% comment %}
+Stock Check - asked before a Rolling batch is started.
+
+Opened from the "Stock Check" button in the top header, so it is included
+once in base.html for signed-in users; its dropdowns come from
+apps.dashboard.context_processors.nav_context. The check is read-only (POST
+/api/rolling/stock-check/); the batch itself is still created, and every
+stock rule enforced, by /rolling/create/.
+{% endcomment %}
+<div class="modal fade" id="stockCheckModal" tabindex="-1" aria-labelledby="stockCheckModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="stockCheckModalLabel"><i class="bi bi-clipboard-check me-2"></i>Stock Check</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="stockCheckForm" novalidate data-api="{% url 'api-rolling-stock-check' %}">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label" for="scTravellerType">Traveller Type <span class="req">*</span></label>
+              <select class="form-select form-select-sm" id="scTravellerType" name="traveller_type_id" required>
+                <option value="">Select traveller type</option>
+                {% for t in stock_check_traveller_types %}
+                  <option value="{{ t.traveller_type_id }}">{{ t.seq_no }} – {{ t.name }}</option>
+                {% endfor %}
+              </select>
+              <div class="invalid-feedback" data-error-for="traveller_type_id"></div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="scTravellerNo">Traveller No. <span class="req">*</span></label>
+              <select class="form-select form-select-sm" id="scTravellerNo" name="traveller_no_id" required>
+                <option value="">Select traveller no</option>
+                {% for n in stock_check_traveller_nos %}
+                  <option value="{{ n.traveller_no_id }}">{{ n.code }}</option>
+                {% endfor %}
+              </select>
+              <div class="invalid-feedback" data-error-for="traveller_no_id"></div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="scRequiredM">Required M <span class="req">*</span></label>
+              <div class="input-group input-group-sm has-validation">
+                <input type="number" class="form-control" id="scRequiredM" name="required_m" min="0.01" step="any"
+                       placeholder="Enter metres" required>
+                <span class="input-group-text">m</span>
+                <div class="invalid-feedback" data-error-for="required_m"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Filled from GET /api/rolling/stock-check/traveller/ once a Traveller Type is picked. -->
+          <div class="form-text mt-2" id="scGuide">
+            Required M is the length of wire needed, in metres. Pick a Traveller Type to see how much its raw material allows.
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button type="submit" class="btn btn-primary btn-sm" id="scSubmit">
+              <i class="bi bi-search me-1"></i> Check Stock
+            </button>
+          </div>
+        </form>
+
+        <div id="stockCheckResult" class="mt-3" hidden></div>
+
+        <div id="scStages" class="mt-3" hidden
+             data-api="{% url 'api-rolling-stock-check-traveller' %}"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById("stockCheckModal");
+  var form = document.getElementById("stockCheckForm");
+  var resultEl = document.getElementById("stockCheckResult");
+  var submitBtn = document.getElementById("scSubmit");
+  var fields = {
+    traveller_type_id: document.getElementById("scTravellerType"),
+    traveller_no_id: document.getElementById("scTravellerNo"),
+    required_m: document.getElementById("scRequiredM")
+  };
+
+  function esc(value) {
+    var div = document.createElement("div");
+    div.textContent = value == null ? "" : String(value);
+    return div.innerHTML;
+  }
+
+  function setError(name, message) {
+    var input = fields[name];
+    var feedback = form.querySelector('[data-error-for="' + name + '"]');
+    if (!input || !feedback) return;
+    input.classList.toggle("is-invalid", !!message);
+    feedback.textContent = message || "";
+  }
+
+  function clearErrors() { Object.keys(fields).forEach(function (name) { setError(name, ""); }); }
+
+  function validate() {
+    clearErrors();
+    var ok = true;
+    if (!fields.traveller_type_id.value) { setError("traveller_type_id", "Select a Traveller Type."); ok = false; }
+    if (!fields.traveller_no_id.value) { setError("traveller_no_id", "Select a Traveller No."); ok = false; }
+    var metres = parseFloat(fields.required_m.value);
+    if (!fields.required_m.value || !(metres > 0)) { setError("required_m", "Enter a Required M greater than zero."); ok = false; }
+    return ok;
+  }
+
+  function materialDetails(data) {
+    var rm = data.raw_material;
+    return '<dl class="row small mb-2">' +
+      '<dt class="col-sm-4">Traveller</dt><dd class="col-sm-8">' + esc(data.traveller_type.seq_no + " – " + data.traveller_type.name) +
+        ' · No. ' + esc(data.traveller_no.code) + '</dd>' +
+      '<dt class="col-sm-4">Raw Material</dt><dd class="col-sm-8">' + esc(rm.raw_material_id) + ' (' + esc(rm.diameter_mm) + ' mm)</dd>' +
+      '<dt class="col-sm-4">F-Thickness / F-Width</dt><dd class="col-sm-8">' + esc(data.f_thickness_mm) + ' mm / ' + esc(data.f_width_mm) + ' mm</dd>' +
+      '<dt class="col-sm-4">Required</dt><dd class="col-sm-8">' + esc(data.required_m) + ' m ≈ <strong>' + esc(data.required_kg) + ' kg</strong></dd>' +
+      '<dt class="col-sm-4">Available (In Stock)</dt><dd class="col-sm-8"><strong>' + esc(data.total_available_kg) + ' kg</strong>' +
+        (data.available_m ? ' ≈ ' + fmtM(data.available_m) + ' m' : '') + ' in ' +
+        data.coils.length + ' coil' + (data.coils.length === 1 ? '' : 's') + '</dd>' +
+      '</dl>';
+  }
+
+  function coilTable(coils) {
+    if (!coils.length) return "";
+    var rows = coils.map(function (c, i) {
+      return '<tr><td class="col-sno">' + (i + 1) + '</td><td class="fw-semibold">Coil ' + esc(c.coil_display_number) + '</td><td class="text-end">' + esc(c.weight_kg) +
+        '</td><td>' + (c.rack_code ? 'Rack ' + esc(c.rack_code) : '<span class="text-muted">Unracked</span>') + '</td></tr>';
+    }).join("");
+    return '<div class="table-responsive"><table class="table table-rover table-sm mb-2">' +
+      '<thead><tr><th class="col-sno">S.No</th><th>Coil</th><th class="text-end">Weight (kg)</th><th>Rack</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  /* The next-step button follows where this traveller is now: if its
+     material is already waiting / in progress at a stage, go there;
+     otherwise (nothing in the line) start a new Rolling batch. */
+  function stageNotice(data) {
+    var cur = data.current_stage;
+    if (!cur) return "";
+    return '<div class="alert alert-info small d-flex align-items-center gap-2 mb-2"><i class="bi bi-geo-alt-fill"></i><div>' +
+      '<strong>' + esc(cur.wire_serial) + '</strong> of this traveller is currently at <strong>' + esc(cur.label) +
+      '</strong> (' + esc(cur.state) + ').</div></div>';
+  }
+
+  function actionButtons(data) {
+    var cur = data.current_stage;
+    var buttons = [];
+    if (cur && cur.slug !== "rolling") {
+      buttons.push('<a class="btn btn-success btn-sm" href="' + esc(cur.url) + '">' + esc(cur.button_label) +
+        ' <i class="bi bi-arrow-right ms-1"></i></a>');
+      if (data.proceed_url) {
+        buttons.unshift('<a class="btn btn-outline-secondary btn-sm" href="' + esc(data.proceed_url) +
+          '"><i class="bi bi-plus-lg me-1"></i>New Rolling Batch</a>');
+      }
+    } else if (cur && cur.slug === "rolling") {
+      // Already rolling: continue that batch rather than starting another.
+      buttons.push('<a class="btn btn-success btn-sm" href="' + esc(cur.url) + '">' + esc(cur.button_label) +
+        ' <i class="bi bi-arrow-right ms-1"></i></a>');
+    } else if (data.proceed_url) {
+      buttons.push('<a class="btn btn-success btn-sm" href="' + esc(data.proceed_url) + '">' + esc(data.proceed_label) +
+        ' <i class="bi bi-arrow-right ms-1"></i></a>');
+    } else if (data.available) {
+      buttons.push('<span class="text-muted small">You are not authorized to start a rolling batch.</span>');
+    }
+    return buttons.length ? '<div class="d-flex justify-content-end gap-2">' + buttons.join("") + '</div>' : "";
+  }
+
+  function render(data) {
+    var html;
+    if (data.status === "no_mapping") {
+      html = '<div class="alert alert-warning mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i> ' + esc(data.message) + '.</div>' +
+        stageNotice(data) + (data.current_stage ? actionButtons(data) : "");
+    } else if (data.available) {
+      html = '<div class="alert alert-success d-flex align-items-center gap-2 mb-3"><i class="bi bi-check-circle-fill"></i><strong>Stock Available</strong></div>' +
+        materialDetails(data) + coilTable(data.coils) + stageNotice(data) + actionButtons(data);
+    } else if (data.current_stage) {
+      html = '<div class="alert alert-danger d-flex align-items-center gap-2 mb-3"><i class="bi bi-x-circle-fill"></i><div><strong>Stock Not Available</strong>' +
+        ' – short by <strong>' + esc(data.shortfall_kg) + ' kg</strong></div></div>' +
+        materialDetails(data) + coilTable(data.coils) + stageNotice(data) + actionButtons(data);
+    } else {
+      html = '<div class="alert alert-danger d-flex align-items-center gap-2 mb-3"><i class="bi bi-x-circle-fill"></i><div><strong>Stock Not Available</strong>' +
+        ' – short by <strong>' + esc(data.shortfall_kg) + ' kg</strong></div></div>' +
+        materialDetails(data) + coilTable(data.coils) +
+        (data.inventory_url
+          ? '<div class="d-flex justify-content-end"><a class="btn btn-outline-primary btn-sm" href="' + esc(data.inventory_url) + '">' +
+            '<i class="bi bi-box-arrow-in-down me-1"></i> Receive coils for ' + esc(data.raw_material.raw_material_id) + '</a></div>'
+          : '');
+    }
+    resultEl.innerHTML = html;
+    resultEl.hidden = false;
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    resultEl.hidden = true;
+    if (!validate()) return;
+    submitBtn.disabled = true;
+    fetch(form.getAttribute("data-api"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": form.querySelector("[name=csrfmiddlewaretoken]").value
+      },
+      body: JSON.stringify({
+        traveller_type_id: fields.traveller_type_id.value,
+        traveller_no_id: fields.traveller_no_id.value,
+        required_m: fields.required_m.value
+      })
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (r) {
+        if (r.ok) { render(r.body); return; }
+        var errors = (r.body && r.body.errors) || {};
+        Object.keys(errors).forEach(function (name) { setError(name, errors[name]); });
+        if (!Object.keys(errors).some(function (n) { return fields[n]; })) {
+          resultEl.innerHTML = '<div class="alert alert-danger mb-0">' + esc(errors.detail || (r.body && r.body.detail) || "Stock check failed.") + '</div>';
+          resultEl.hidden = false;
+        }
+      })
+      .catch(function () {
+        resultEl.innerHTML = '<div class="alert alert-danger mb-0">Stock check failed. Please try again.</div>';
+        resultEl.hidden = false;
+      })
+      .finally(function () { submitBtn.disabled = false; });
+  });
+
+  Object.keys(fields).forEach(function (name) {
+    fields[name].addEventListener("input", function () { setError(name, ""); resultEl.hidden = true; });
+    fields[name].addEventListener("change", function () { setError(name, ""); resultEl.hidden = true; });
+  });
+
+  /* ---- Traveller overview: Required M guidance + current stage ---- */
+  var guideEl = document.getElementById("scGuide");
+  var stagesEl = document.getElementById("scStages");
+  var GUIDE_DEFAULT = guideEl.innerHTML;
+  var overviewSeq = 0;
+
+  function fmtM(value) { return Number(value).toLocaleString(); }
+
+  function fillButton(metres, label) {
+    return ' <button type="button" class="btn btn-link btn-sm p-0 align-baseline sc-fill" data-metres="' + esc(metres) + '">' +
+      esc(label) + '</button>';
+  }
+
+  function renderGuide(data) {
+    if (!data.raw_material) {
+      guideEl.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> No raw material mapping configured for this Traveller Type.</span>';
+      return;
+    }
+    var rm = data.raw_material, stock = data.stock, history = data.history;
+    var html = '<i class="bi bi-info-circle"></i> Required M = wire length in metres of ' + esc(rm.raw_material_id) +
+      ' (' + esc(rm.diameter_mm) + ' mm). In stock: <strong>' + esc(stock.total_kg) + ' kg ≈ ' + fmtM(stock.total_m) +
+      ' m</strong> in ' + stock.coil_count + ' coil' + (stock.coil_count === 1 ? '' : 's') + '.';
+    if (history) {
+      html += '<br>Past batches of this type (' + history.batch_count + '): last ' + esc(history.last_kg) + ' kg ≈ ' +
+        fmtM(history.last_m) + ' m' + fillButton(history.last_m, "use") +
+        ' · average ' + esc(history.average_kg) + ' kg ≈ ' + fmtM(history.average_m) + ' m' + fillButton(history.average_m, "use") + '.';
+    }
+    guideEl.innerHTML = html;
+  }
+
+  function renderStages(data) {
+    var chips = data.stages.map(function (s) {
+      return '<a class="btn btn-sm ' + (s.count ? 'btn-outline-primary' : 'btn-outline-secondary') + '" href="' + esc(s.url) + '">' +
+        esc(s.label) + ' <span class="badge ' + (s.count ? 'bg-primary' : 'bg-secondary') + ' ms-1">' + s.count + '</span></a>';
+    }).join('<i class="bi bi-chevron-right text-muted small"></i>');
+
+    var who = data.traveller_type.seq_no + " – " + data.traveller_type.name + (data.traveller_no ? " · No. " + data.traveller_no.code : "");
+    var html = '<h6 class="mb-2"><i class="bi bi-diagram-3 me-1"></i>Current Stage <span class="text-muted small fw-normal">' + esc(who) + '</span></h6>' +
+      '<div class="d-flex flex-wrap align-items-center gap-2 mb-2">' + chips + '</div>';
+
+    if (!data.lots.length) {
+      html += '<div class="text-muted small">No material of this traveller is in the line yet.</div>';
+    } else {
+      var rows = data.lots.map(function (l, i) {
+        var stage = l.url ? '<a href="' + esc(l.url) + '">' + esc(l.stage) + ' <i class="bi bi-box-arrow-up-right small"></i></a>' : esc(l.stage);
+        return '<tr><td class="col-sno">' + (i + 1) + '</td><td class="fw-semibold">' + esc(l.wire_serial) + '</td><td>' +
+          esc(l.traveller_no) + '</td><td>' + stage + '</td><td>' + esc(l.state) + '</td></tr>';
+      }).join("");
+      html += '<div class="table-responsive"><table class="table table-rover table-sm mb-1">' +
+        '<thead><tr><th class="col-sno">S.No</th><th>Wire Serial</th><th>Traveller No</th><th>Stage</th><th>State</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>' +
+        (data.lot_count > data.lots.length
+          ? '<div class="text-muted small">Showing the latest ' + data.lots.length + ' of ' + data.lot_count + '. The stage counts above cover all of them.</div>'
+          : '');
+    }
+    stagesEl.innerHTML = html;
+    stagesEl.hidden = false;
+  }
+
+  function loadOverview() {
+    var typeId = fields.traveller_type_id.value;
+    var seq = ++overviewSeq;
+    if (!typeId) { guideEl.innerHTML = GUIDE_DEFAULT; stagesEl.hidden = true; stagesEl.innerHTML = ""; return; }
+    var params = new URLSearchParams({ traveller_type_id: typeId });
+    if (fields.traveller_no_id.value) params.set("traveller_no_id", fields.traveller_no_id.value);
+    fetch(stagesEl.getAttribute("data-api") + "?" + params.toString(), { credentials: "same-origin" })
+      .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
+      .then(function (data) {
+        if (seq !== overviewSeq) return;  // a newer selection has already been requested
+        renderGuide(data);
+        renderStages(data);
+      })
+      .catch(function () {
+        if (seq !== overviewSeq) return;
+        guideEl.innerHTML = GUIDE_DEFAULT;
+        stagesEl.innerHTML = '<div class="text-muted small">Could not load the current stage for this traveller.</div>';
+        stagesEl.hidden = false;
+      });
+  }
+
+  fields.traveller_type_id.addEventListener("change", loadOverview);
+  fields.traveller_no_id.addEventListener("change", loadOverview);
+  guideEl.addEventListener("click", function (e) {
+    var btn = e.target.closest(".sc-fill");
+    if (!btn) return;
+    fields.required_m.value = btn.getAttribute("data-metres");
+    setError("required_m", "");
+    resultEl.hidden = true;
+    fields.required_m.focus();
+  });
+
+  modal.addEventListener("hidden.bs.modal", function () {
+    form.reset();
+    clearErrors();
+    resultEl.hidden = true;
+    resultEl.innerHTML = "";
+    overviewSeq++;
+    guideEl.innerHTML = GUIDE_DEFAULT;
+    stagesEl.hidden = true;
+    stagesEl.innerHTML = "";
+  });
+})();
+</script>

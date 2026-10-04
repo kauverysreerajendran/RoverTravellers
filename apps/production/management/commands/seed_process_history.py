@@ -210,6 +210,10 @@ class Command(BaseCommand):
             self._ensure_mappings(allow_provisional=options["provisional_mappings"])
 
             days = self._working_days(date_from, date_to)
+            if not days and options["extend"]:
+                # A daily top-up run on a Sunday, after Saturday is seeded.
+                self.stdout.write(self.style.SUCCESS(f"Nothing to generate: no working days up to {date_to}."))
+                return
             if not days:
                 raise CommandError(f"No working days (Mon-Sat) between {date_from} and {date_to}.")
             plan = self._plan_batches(days, options["per_day"], date_to)
@@ -439,6 +443,7 @@ class Command(BaseCommand):
                 )
                 diameter.refresh_from_db()
                 received += 1
+                print(f"    coil #{received} received for {diameter.raw_material_id}", flush=True)
         self.stdout.write(f"  Coils received: {received} across {len(demand)} diameters")
 
     # ------------------------------------------------------------------
@@ -508,24 +513,32 @@ class Command(BaseCommand):
         Each lot still moves through the registry on its own; only the order
         the generator visits them in changed.
         """
-        for entry in plan:
+        total = len(plan)
+        print(f"  Rolling: creating {total} batches...", flush=True)
+        for i, entry in enumerate(plan, 1):
             entry["record"] = self._initiate_rolling(entry)
+            print(f"    [{i}/{total}] {entry['record'].wire_serial} rolled ({entry['traveller_type'].name})", flush=True)
 
         for step in range(1, len(PROCESSES)):
             due = [entry for entry in plan if entry["target"] >= step]
+            print(f"  {PROCESSES[step - 1].label} -> {PROCESSES[step].label}: {len(due)} lots", flush=True)
             # Everything finishes at this process before anything starts at
             # the next one, so a furnace load is out of the furnace before
             # any of its lots is picked up downstream.
-            for entry in due:
+            for i, entry in enumerate(due, 1):
                 self._complete(PROCESSES[step - 1], entry["record"], entry)
-            for entry in due:
+                print(f"    [{i}/{len(due)}] completed at {PROCESSES[step - 1].label}: {entry['record'].wire_serial}", flush=True)
+            for i, entry in enumerate(due, 1):
                 entry["record"] = self._initiate(
                     PROCESSES[step], entry["record"].handover_lot, entry
                 )
+                print(f"    [{i}/{len(due)}] initiated at {PROCESSES[step].label}: {entry['record'].wire_serial}", flush=True)
 
-        for entry in plan:
-            if entry["complete"]:
-                self._complete(PROCESSES[entry["target"]], entry["record"], entry)
+        finals = [entry for entry in plan if entry["complete"]]
+        print(f"  Final completions: {len(finals)} lots", flush=True)
+        for i, entry in enumerate(finals, 1):
+            self._complete(PROCESSES[entry["target"]], entry["record"], entry)
+            print(f"    [{i}/{len(finals)}] finished: {entry['record'].wire_serial}", flush=True)
 
     def _initiate_rolling(self, entry):
         process = PROCESSES[0]

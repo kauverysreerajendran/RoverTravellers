@@ -271,8 +271,35 @@ class SeedProcessHistoryGuardTests(TestCase):
     def test_extend_leaves_existing_rows_untouched(self):
         from apps.rolling.models import RollingBatch
 
-        call_command("seed_process_history", **self.guard_options(), stdout=StringIO())
+        # Fixed past dates (Mon-Tue, then extend to Thu), so the run does not
+        # depend on today's weekday and the extend really adds new days.
+        monday = self.past_monday()
+        call_command("seed_process_history", **self.guard_options(
+            date_from=monday.isoformat(), date_to=(monday + datetime.timedelta(days=1)).isoformat()),
+            stdout=StringIO())
         existing = dict(RollingBatch.objects.values_list("pk", "wire_serial"))
-        call_command("seed_process_history", extend=True, per_day=2, stdout=StringIO())
+        call_command("seed_process_history", extend=True, per_day=2,
+                     date_to=(monday + datetime.timedelta(days=3)).isoformat(), stdout=StringIO())
         still_there = dict(RollingBatch.objects.filter(pk__in=existing).values_list("pk", "wire_serial"))
         self.assertEqual(still_there, existing, "an --extend run rewrote rows it should not have touched")
+        self.assertGreater(RollingBatch.objects.count(), len(existing), "--extend added no new days")
+
+    def test_extend_on_a_sunday_is_a_no_op(self):
+        from apps.rolling.models import RollingBatch
+
+        saturday = self.past_monday() + datetime.timedelta(days=5)
+        call_command("seed_process_history", **self.guard_options(
+            date_from=(saturday - datetime.timedelta(days=2)).isoformat(), date_to=saturday.isoformat()),
+            stdout=StringIO())
+        before = RollingBatch.objects.count()
+        out = StringIO()
+        call_command("seed_process_history", extend=True, per_day=2,
+                     date_to=(saturday + datetime.timedelta(days=1)).isoformat(), stdout=out)
+        self.assertIn("Nothing to generate", out.getvalue())
+        self.assertEqual(RollingBatch.objects.count(), before)
+
+    @staticmethod
+    def past_monday():
+        """The Monday of the week before last: a full working week in the past."""
+        today = datetime.datetime.now(tz=IST).date()
+        return today - datetime.timedelta(days=today.weekday() + 14)

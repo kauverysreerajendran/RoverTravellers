@@ -469,6 +469,7 @@ a { color: var(--rover-red); }
 .badge-status-cancelled { background: #eceef2; color: #6b7280; }
 .badge-status-available { background: var(--rover-success-tint); color: var(--rover-success); }
 .badge-status-hold { background: var(--rover-warning-tint); color: var(--rover-warning); }
+.badge-status-dispatched { background: var(--rover-info-tint); color: var(--rover-info); }
 .badge-status-pass { background: var(--rover-success-tint); color: var(--rover-success); }
 .badge-status-fail { background: var(--rover-danger-tint); color: var(--rover-danger); }
 .badge-status-pending { background: var(--rover-warning-tint); color: var(--rover-warning); }

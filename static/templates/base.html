@@ -48,6 +48,11 @@
     </div>
 
     <button type="button" class="btn btn-outline-light btn-sm header-locate" data-bs-toggle="modal"
+            data-bs-target="#stockCheckModal" title="Check raw material stock before Rolling">
+      <i class="bi bi-clipboard-check"></i><span class="d-none d-lg-inline ms-1">Stock Check</span>
+    </button>
+
+    <button type="button" class="btn btn-outline-light btn-sm header-locate" data-bs-toggle="modal"
             data-bs-target="#locateModal" title="Locate a heat batch">
       <i class="bi bi-geo-alt"></i><span class="d-none d-lg-inline ms-1">Locate me</span>
     </button>
@@ -167,6 +172,7 @@
 </div>
 
 {% include "heat_treatment/_locate_modal.html" %}
+{% include "rolling/_stock_check.html" %}
 {% else %}
   {% block auth_content %}{% endblock %}
 {% endif %}

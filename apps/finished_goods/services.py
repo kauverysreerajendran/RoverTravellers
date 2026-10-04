@@ -68,14 +68,25 @@ def receive_finished_goods(*, lot, product, accepted_quantity, rejected_quantity
     return fg_stock
 
 
+def _ensure_not_dispatched(fg_stock):
+    if fg_stock.status == "dispatched":
+        raise ValidationError(f"{fg_stock.fg_lot_number} has already been dispatched.")
+
+
 @transaction.atomic
 def remove_from_rack(fg_stock, user, reason=""):
     """Take finished goods off their rack slot. Finished Goods is terminal,
     so no later process frees the slot: it is vacated only here, when the
-    stock physically leaves the rack."""
+    stock physically leaves the rack.
+
+    Approved (available) stock leaving the rack has been dispatched: the
+    row keeps its weight and history but stops counting as stock. Stock on
+    hold or rejected keeps its status - it has not passed QC, so it cannot
+    have been dispatched."""
     process = get_process(PROCESS_SLUG)
     if not user.can_operate_stage(process.slug):
         raise PermissionDenied("You are not authorized to move finished goods off a rack.")
+    _ensure_not_dispatched(fg_stock)
 
     zone = rack_services.zone_for_process(process)
     slot = rack_services.slot_for_lot(zone, fg_stock.lot)
@@ -83,10 +94,17 @@ def remove_from_rack(fg_stock, user, reason=""):
         raise ValidationError(f"{fg_stock.fg_lot_number} is not on a {zone.name if zone else 'rack'} slot.")
 
     rack_services.release_lot(zone, fg_stock.lot, user, reason=reason or "removed from rack")
+    dispatched = fg_stock.status == "available"
+    if dispatched:
+        fg_stock.status = "dispatched"
+        fg_stock.updated_by = user
+        fg_stock.full_clean()
+        fg_stock.save(update_fields=["status", "updated_by", "updated_at"])
     log_action(
         user, "update", fg_stock,
-        description=f"Finished goods {fg_stock.fg_lot_number} removed from {slot.label}",
-        metadata={"rack_slot": slot.label, "reason": reason},
+        description=f"Finished goods {fg_stock.fg_lot_number} removed from {slot.label}"
+        + (" and dispatched" if dispatched else ""),
+        metadata={"rack_slot": slot.label, "reason": reason, "status": fg_stock.status},
     )
     return slot
 
@@ -95,6 +113,7 @@ def remove_from_rack(fg_stock, user, reason=""):
 def approve_finished_goods(fg_stock, user, mark_available=True):
     if not user.can_approve():
         raise PermissionDenied("You are not authorized to approve finished goods.")
+    _ensure_not_dispatched(fg_stock)
     fg_stock.quality_approved = True
     fg_stock.quality_approved_by = user
     fg_stock.status = "available" if mark_available else "hold"
@@ -109,6 +128,7 @@ def approve_finished_goods(fg_stock, user, mark_available=True):
 def reject_finished_goods(fg_stock, user, remarks=""):
     if not user.can_approve():
         raise PermissionDenied("You are not authorized to reject finished goods.")
+    _ensure_not_dispatched(fg_stock)
     fg_stock.status = "rejected"
     fg_stock.quality_approved = False
     fg_stock.updated_by = user
@@ -120,6 +140,7 @@ def reject_finished_goods(fg_stock, user, remarks=""):
 
 @transaction.atomic
 def hold_finished_goods(fg_stock, user):
+    _ensure_not_dispatched(fg_stock)
     fg_stock.status = "hold"
     fg_stock.updated_by = user
     fg_stock.save()

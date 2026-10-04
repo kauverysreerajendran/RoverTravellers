@@ -3,7 +3,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from . import models, serializers
+from . import models, serializers, services
 
 
 class TravellerTypeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -73,7 +73,5 @@ def coils_for_diameter(request):
     raw_material_id = request.query_params.get("raw_material_id")
     if not raw_material_id:
         return Response({"detail": "raw_material_id query parameter is required."}, status=400)
-    coils = models.CoilMaster.objects.filter(
-        raw_material_id=raw_material_id, status="In Stock"
-    ).select_related("rack").order_by("coil_display_number")
+    coils = services.in_stock_coils(raw_material_id)
     return Response(serializers.CoilSerializer(coils, many=True).data)

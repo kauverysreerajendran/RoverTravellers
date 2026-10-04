@@ -109,6 +109,13 @@
           <span class="input-group-text">kg</span>
         </div>
         {% if form.wire_weight_issued_kg.errors %}<div class="text-danger small mt-1">{{ form.wire_weight_issued_kg.errors.0 }}</div>{% endif %}
+        {% if stock_check and stock_check.required_kg is not None %}
+          <div class="form-text" id="stockCheckHint">
+            <i class="bi bi-clipboard-check"></i> Stock Check: Required {{ stock_check.required_m }} m ≈ {{ stock_check.required_kg }} kg
+            of {{ stock_check.raw_material.raw_material_id }}
+            ({{ stock_check.total_available_kg }} kg in stock{% if not stock_check.available %}, short by {{ stock_check.shortfall_kg }} kg{% endif %}).
+          </div>
+        {% endif %}
       </div>
     </div>
   </div>

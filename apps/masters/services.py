@@ -43,6 +43,16 @@ def generate_wire_serial() -> str:
     return serial.serial_no
 
 
+def in_stock_coils(raw_material_id):
+    """The coils a Rolling batch can still draw wire from for a diameter,
+    in coil-number order."""
+    return (
+        CoilMaster.objects.filter(raw_material_id=raw_material_id, status="In Stock")
+        .select_related("rack")
+        .order_by("coil_display_number")
+    )
+
+
 @transaction.atomic
 def receive_coil(*, raw_material: DiameterMaster, weight_kg: Decimal, rack=None, supplier="", received_date=None):
     coil = CoilMaster(

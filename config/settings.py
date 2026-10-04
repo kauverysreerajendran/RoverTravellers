@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.humanize",
     "rest_framework",
+    "rest_framework.authtoken",
     "django_filters",
     "corsheaders",
     "apps.accounts",
@@ -57,6 +58,7 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.reports",
     "apps.audit",
+    "apps.sales",
 ]
 
 MIDDLEWARE = [
@@ -101,6 +103,16 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
 if DATABASE_URL:
     DATABASES = {"default": environ.Env.db_url_config(DATABASE_URL)}
     DATABASES["default"]["CONN_MAX_AGE"] = 600
+    # TCP keepalives so a long-running script (e.g. seed_process_history)
+    # doesn't get its connection silently dropped by network equipment
+    # during a stretch with no active query.
+    DATABASES["default"]["OPTIONS"] = {
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+        "connect_timeout": 10,
+    }
 else:
     DATABASES = {
         "default": {
@@ -154,6 +166,9 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
+        # Sales mobile app: token issued by /api/sales/auth/login/ for the
+        # same Django users; expires after SALES_TOKEN_TTL_HOURS.
+        "apps.sales.authentication.ExpiringTokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -169,3 +184,12 @@ REST_FRAMEWORK = {
 
 CORS_ALLOWED_ORIGINS = []
 CORS_ALLOW_CREDENTIALS = True
+
+# --- Sales & Marketing (mobile app) -----------------------------------------
+SALES_TOKEN_TTL_HOURS = env.int("SALES_TOKEN_TTL_HOURS", default=12)
+SALES_DEFAULT_REMINDER_DAYS = env.int("SALES_DEFAULT_REMINDER_DAYS", default=15)
+SALES_REPEAT_ORDER_MONTHS = env.int("SALES_REPEAT_ORDER_MONTHS", default=1)
+# When date-based reminders surface each day (HH:MM, local time):
+# 08:00 = beginning of day, 18:00 = end of day.
+SALES_REMINDER_NOTIFY_TIME = env("SALES_REMINDER_NOTIFY_TIME", default="08:00")
+SALES_OWN_BRAND = env("SALES_OWN_BRAND", default="Rover")

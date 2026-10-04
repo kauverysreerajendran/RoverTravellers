@@ -175,12 +175,14 @@ document.addEventListener("DOMContentLoaded", function () {
     function show(batch) {
       var types = (batch.traveller_types || []).join(", ") || "-";
       var serials = (batch.wire_serials || []).join(", ") || "-";
+      var totalKg = batch.received_weight_total != null ? batch.received_weight_total + " kg" : "-";
       detail.hidden = false;
       detail.innerHTML =
         '<img src="' + batch.qr_url + '" alt="Batch QR">' +
         '<div><div class="fs-5 fw-bold">' + batch.batch_no + "</div>" +
         '<div class="small text-muted mb-2">' + types +
-        "<br>" + serials + "</div>" +
+        "<br>" + serials +
+        "<br>Total: " + totalKg + "</div>" +
         '<a class="btn btn-primary btn-sm" href="' + batch.url + '">View</a> ' +
         '<a class="btn btn-outline-secondary btn-sm" target="_blank" href="' + batch.label_url + '">Print label</a>' +
         "</div>";
